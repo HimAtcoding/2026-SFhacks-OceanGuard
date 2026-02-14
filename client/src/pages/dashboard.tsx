@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Radio,
+  RefreshCw,
+  Satellite,
 } from "lucide-react";
 import {
   AreaChart,
@@ -28,12 +32,24 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
 } from "recharts";
+
+function LiveIndicator() {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="relative flex h-2.5 w-2.5">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-chart-3 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-chart-3" />
+      </span>
+      <span className="text-xs font-medium text-chart-3">LIVE</span>
+    </div>
+  );
+}
 
 function MetricCard({
   icon: Icon,
@@ -82,12 +98,21 @@ function MetricCard({
 
 function ScanRow({ scan }: { scan: DroneScan }) {
   const algaeColor = scan.algaeLevel > 60 ? "text-destructive" : scan.algaeLevel > 30 ? "text-muted-foreground" : "text-primary";
-  const statusVariant = scan.status === "completed" ? "secondary" : "default";
+  const isLive = scan.scanName.includes("Live");
+  const timeDiff = Date.now() - new Date(scan.scanDate).getTime();
+  const isRecent = timeDiff < 120000;
 
   return (
-    <div data-testid={`row-scan-${scan.id}`} className="flex flex-wrap items-center gap-3 p-4 border-b border-border last:border-0">
+    <div data-testid={`row-scan-${scan.id}`} className={`flex flex-wrap items-center gap-3 p-4 border-b border-border last:border-0 ${isRecent ? "bg-chart-3/5" : ""}`}>
       <div className="flex-1 min-w-[140px]">
-        <p className="font-medium text-foreground text-sm">{scan.scanName}</p>
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-foreground text-sm">{scan.scanName}</p>
+          {isLive && isRecent && (
+            <Badge variant="outline" className="text-chart-3 border-chart-3/30">
+              NEW
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1 mt-0.5">
           <MapPin className="h-3 w-3 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">{scan.location}</span>
@@ -99,7 +124,7 @@ function ScanRow({ scan }: { scan: DroneScan }) {
           <p className="text-xs text-muted-foreground">Algae</p>
         </div>
         <div className="text-center min-w-[60px]">
-          <p className="text-sm font-semibold text-foreground">{scan.greeneryIndex.toFixed(1)}</p>
+          <p className="text-sm font-semibold text-foreground">{scan.greeneryIndex.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground">NDVI</p>
         </div>
         <div className="text-center min-w-[60px]">
@@ -108,9 +133,9 @@ function ScanRow({ scan }: { scan: DroneScan }) {
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground min-w-[100px]">
           <Clock className="h-3 w-3" />
-          {new Date(scan.scanDate).toLocaleDateString()}
+          {isRecent ? "Just now" : new Date(scan.scanDate).toLocaleString()}
         </div>
-        <Badge variant={statusVariant} className="text-xs">
+        <Badge variant="secondary" className="text-xs">
           {scan.status}
         </Badge>
       </div>
@@ -171,13 +196,21 @@ function LoadingSkeleton() {
 }
 
 export default function Dashboard() {
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
   const { data: scans, isLoading: scansLoading } = useQuery<DroneScan[]>({
     queryKey: ["/api/scans"],
+    refetchInterval: 5000,
   });
 
   const { data: alerts, isLoading: alertsLoading } = useQuery<Alert[]>({
     queryKey: ["/api/alerts"],
+    refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    if (scans) setLastUpdate(new Date());
+  }, [scans]);
 
   if (scansLoading || alertsLoading) return <LoadingSkeleton />;
 
@@ -198,11 +231,19 @@ export default function Dashboard() {
     ? latestScans.filter(s => s.temperature).reduce((sum, s) => sum + (s.temperature || 0), 0) / latestScans.filter(s => s.temperature).length
     : 0;
 
-  const chartData = latestScans.map((s) => ({
+  const chartData = latestScans.slice(0, 15).reverse().map((s) => ({
     name: s.scanName.length > 12 ? s.scanName.slice(0, 12) + "..." : s.scanName,
     algae: s.algaeLevel,
     quality: s.waterQuality,
     greenery: s.greeneryIndex * 100,
+  }));
+
+  const sensorData = latestScans.slice(0, 10).reverse().map((s) => ({
+    name: s.location.split(",")[0].slice(0, 10),
+    pH: s.phLevel || 0,
+    DO: s.dissolvedOxygen || 0,
+    temp: s.temperature || 0,
+    turbidity: s.turbidity || 0,
   }));
 
   const qualityDistribution = [
@@ -216,21 +257,28 @@ export default function Dashboard() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap" data-testid="section-dashboard-header">
         <div>
-          <h1 className="text-2xl font-bold text-foreground" data-testid="text-dashboard-title">Ocean Health Dashboard</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Real-time environmental monitoring from drone scans
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-2xl font-bold text-foreground" data-testid="text-dashboard-title">Ocean Health Dashboard</h1>
+            <div data-testid="status-live-indicator"><LiveIndicator /></div>
+          </div>
+          <p className="text-sm text-muted-foreground" data-testid="text-last-update">
+            Real-time environmental monitoring from drone fleet &middot; Updated {lastUpdate.toLocaleTimeString()}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {activeAlerts.length > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />
-              {activeAlerts.length} Active Alert{activeAlerts.length !== 1 ? "s" : ""}
+              {activeAlerts.length} Active
             </Badge>
           )}
           <Badge variant="secondary" className="gap-1">
-            <Activity className="h-3 w-3" />
+            <Satellite className="h-3 w-3" />
             {latestScans.length} Scans
+          </Badge>
+          <Badge variant="outline" className="gap-1" data-testid="status-auto-refresh">
+            <Radio className="h-3 w-3" />
+            Auto-refresh 5s
           </Badge>
         </div>
       </div>
@@ -290,7 +338,7 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 12%, 85%)" strokeOpacity={0.3} />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(210, 8%, 60%)" />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(210, 8%, 60%)" />
               <YAxis tick={{ fontSize: 11 }} stroke="hsl(210, 8%, 60%)" />
               <Tooltip
                 contentStyle={{
@@ -337,6 +385,28 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      <Card className="p-6" data-testid="section-sensor-analytics">
+        <h3 className="font-semibold text-foreground mb-4">Sensor Data Analytics</h3>
+        <ResponsiveContainer width="100%" height={250}>
+          <BarChart data={sensorData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 12%, 85%)" strokeOpacity={0.3} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} stroke="hsl(210, 8%, 60%)" />
+            <YAxis tick={{ fontSize: 11 }} stroke="hsl(210, 8%, 60%)" />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(210, 15%, 96%)",
+                border: "1px solid hsl(210, 12%, 90%)",
+                borderRadius: "6px",
+                fontSize: "12px",
+              }}
+            />
+            <Bar dataKey="pH" name="pH Level" fill="hsl(195, 82%, 48%)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="DO" name="Dissolved O2" fill="hsl(145, 60%, 45%)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="turbidity" name="Turbidity" fill="hsl(45, 80%, 50%)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </Card>
+
       <Tabs defaultValue="scans">
         <TabsList>
           <TabsTrigger value="scans" data-testid="tab-scans">Recent Scans</TabsTrigger>
@@ -352,7 +422,7 @@ export default function Dashboard() {
                 <p className="text-muted-foreground">No scan data yet. Deploy a drone to start monitoring.</p>
               </div>
             ) : (
-              latestScans.map((scan) => <ScanRow key={scan.id} scan={scan} />)
+              latestScans.slice(0, 20).map((scan) => <ScanRow key={scan.id} scan={scan} />)
             )}
           </Card>
         </TabsContent>
@@ -364,7 +434,7 @@ export default function Dashboard() {
                 <p className="text-muted-foreground">No alerts. All environmental readings are within safe limits.</p>
               </div>
             ) : (
-              latestAlerts.map((alert) => <AlertRow key={alert.id} alert={alert} />)
+              latestAlerts.slice(0, 20).map((alert) => <AlertRow key={alert.id} alert={alert} />)
             )}
           </Card>
         </TabsContent>

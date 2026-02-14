@@ -12,6 +12,7 @@ import Dashboard from "@/pages/dashboard";
 import PitchDeck from "@/pages/pitch";
 import Tracks from "@/pages/tracks";
 import Technology from "@/pages/technology";
+import { Chatbot } from "@/components/chatbot";
 
 function Router() {
   return (
@@ -50,6 +51,7 @@ function App() {
               </div>
             </div>
           </SidebarProvider>
+          <Chatbot />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
