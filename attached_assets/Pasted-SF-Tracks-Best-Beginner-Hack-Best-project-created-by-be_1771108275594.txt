@@ -1,0 +1,74 @@
+SF Tracks:
+Best Beginner Hack: Best project created by beginners to hackathons. To be eligible, teams must have one participant that is a first-time hacker.
+Best Hardware Hack: Best project that involves the heavy use or integration of hardware (Arduinos, Raspberry PIs, etc.)
+Best Design Hack: Project that has the best design in terms of aesthetic appeal, usability, simplicity and overall user experience.
+Best Hack for Sustainability in Education: Project that prioritizes the promotion of sustainability in classroom settings, K-12 or college. Sustainability can take the forms of reducing waste, improving use of resources, etc.
+Best Hack for Climate Action: Project that prioritizes reducing the impact of climate change or providing a solution to help mitigate a common problem that affects the climate (as an example, fast fashion waste & factories affect climate change as well).
+
+
+
+SFSU Innovation & Entrepreneurship / Lam-Larsen Emerging Technologies Initiative: Entrepreneurship Track: I&E: Lam Family of College Business-Entrepreneurship track, prizes, $500 cash and a PS5.
+Track requirements:
+1. Do a Pitch deck(when the judges come around, specifically the track judges
+2. Someone on the team has to be a business major if you want to do this track
+Broxi AI: Best Use of Broxi AI (Top 3 winners): Get in Broxi web -> register an account -> login -> create a team (that team will only have 1 person) to get 100 free credits. https://broxi.ai/ 
+
+
+IBM Best Use of API for AI: IBM Merch/Swag, career coaching sessions, tour of IBM Silicon Valley Labs
+
+
+SFSU LFCoB Entrepreneurship Track: $500 and a PS5! (Must qualify for entrepreneurship track, requires a pitch deck and business major)
+
+
+SF Hacks – Student Onboarding Guide: IBM webMethods Hybrid Integration (IWHI) + API Connect
+Welcome to SF Hacks! This guide gets you from the welcome email to a running no‑code workflow published as an API. 
+Step 1 — Open Your IWHI Environment from the Welcome Email
+Check your inbox for an email titled 'Welcome to IBM webMethods Hybrid Integration'. Click the link in that email to open the IBM SaaS Console and your assigned service instance. Access to IWHI begins from this email link.
+IBM Docs – Getting Started: https://www.ibm.com/docs/en/hybrid-integration/saas?topic=getting-started
+Step 2 — Launch Integration (webMethods.io Integration)
+In the IBM SaaS Console, open your IWHI service instance. Click the Integration capability to launch the webMethods.io Integration designer (no‑code workflow builder).
+Product Overview (Integration, connectors, no‑code): https://www.ibm.com/docs/en/wm-integration-ipaas?topic=overview
+Step 3 — Create Your Project
+In Integration, go to Projects → + New Project. Name it for your team (e.g., SFH2026_Team_7). This is your workspace for workflows and assets.
+Beginner flow and UI orientation (community guide): https://community.ibm.com/community/user/viewdocument/getting-started-with-webmethodsio?CommunityKey=82b75916-ed06-4a13-8eb6-0190da9f1bfa
+Step 4 — Build a No‑Code Workflow
+Inside your project: Workflows → Add Workflow → choose an HTTP Trigger. Add steps using the visual editor and return a simple JSON response for testing.
+Hands-on tutorials (videos + steps): https://community.ibm.com/community/user/blogs/webmethods-community-member/2024/02/23/webmethodsio-integration-super-ipaas-step-by-step-tutorials
+Step 5 — Add a Connector (Optional but Recommended)
+Add a connector block (e.g., Slack, Twilio, Email/SMTP, HTTP, MySQL/Postgres). Keep it simple for speed; avoid OAuth‑heavy connectors.
+Examples repo (Slack, MySQL, etc.): https://github.com/ibm-wm-transition/webMethods-io-examples
+Step 6 — Test the Workflow
+Use the built‑in Test panel to send a request to your HTTP trigger and verify the JSON response and any connector side effects (e.g., Slack message).
+Step 7 — Export Your API (OpenAPI)
+Open your workflow’s API tab and export the OpenAPI definition (openapi.yaml). This file describes your API so it can be imported into API Connect.
+Pattern reference (workflow → OpenAPI → API Connect): https://community.ibm.com/community/user/blogs/bino-varghese/2025/09/02/exposing-webmethods-integration-as-apis
+Step 8 — Import and Publish in API Connect (Keep it Simple)
+Open API Connect → Drafts → APIs → Add → Import. Upload openapi.yaml. Apply one simple policy: API Key. Publish to get a gateway URL. Copy that URL for your client app or Postman.
+API Gateway basics (policies, security): https://www.ibm.com/docs/en/wams/wm-api-gateway-saas/11.1.0?topic=overview
+Step 9 — Call Your API
+Use Postman or your client (Node/React/Python/mobile) to call the published gateway URL. If an API key is required, add it to your request headers as instructed by your admin.
+Tips and Pitfalls to Avoid
+- Start simple: one HTTP trigger + one connector + JSON response.
+- Avoid OAuth‑heavy connectors during the hackathon; use Slack, Twilio, Email/SMTP, HTTP, or simple DB inserts.
+- Keep API Connect configuration minimal (API Key only).
+- If you can’t log in, you likely were not added yet—ask an admin to add your email so you receive the welcome email.
+References 
+IBM Docs – Getting Started with IWHI (welcome email and SaaS Console): https://www.ibm.com/docs/en/hybrid-integration/saas?topic=getting-started
+IBM Docs – webMethods Integration overview (no‑code, connectors): https://www.ibm.com/docs/en/wm-integration-ipaas?topic=overview
+Hands‑on tutorials (Super iPaaS): https://community.ibm.com/community/user/blogs/webmethods-community-member/2024/02/23/webmethodsio-integration-super-ipaas-step-by-step-tutorials
+API publishing pattern (workflow → OpenAPI → API Connect): https://community.ibm.com/community/user/blogs/bino-varghese/2025/09/02/exposing-webmethods-integration-as-apis
+API Gateway overview and basic policies: https://www.ibm.com/docs/en/wams/wm-api-gateway-saas/11.1.0?topic=overview
+Best Hack for the Future of Work
+Mars Rover Lego Set & Meeting with JFFVentures Investment Team
+While AI and automation are rapidly transforming the global economy, millions of workers remain stuck in roles that lack stability and growth. JFFVentures is an impact-first venture capital fund investing in technology that creates economic mobility. By 2033, they have a bold goal of helping 75 million Americans facing barriers to economic advancement gain quality jobs. 
+
+Whether it’s a tool that helps a retail worker gain management skills on the go, a platform that connects gig workers to healthcare benefits, or an AI collaborator that makes a manufacturing floor safer and more productive, your mission is to bridge the gap between innovation and opportunity. From "learn-to-earn" platforms to AI tools that enhance human productivity, now is the time to pursue solutions that empower the workforce and prepare the next generation with the skills to thrive. 
+
+The winning team will receive a lego set for each team member and an exclusive meeting with JFFVenture’s team of expert investors. 
+Prompt: 
+Hack For Greener Tommorrow 
+
+
+We are working on a website that takes drone data and scans the environment and detects how green and how much algae is in the area in the ocean and determines everything so i need you to  build that
+
+
