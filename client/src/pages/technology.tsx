@@ -1,5 +1,4 @@
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import {
@@ -12,17 +11,16 @@ import {
   Thermometer,
   Droplets,
   Leaf,
-  Layers,
   Code,
   Server,
   ArrowRight,
+  Brain,
+  Cloud,
+  Shield,
+  Coins,
+  Layers,
+  Mic,
 } from "lucide-react";
-
-const fadeIn = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4 },
-};
 
 function TechStackItem({ icon: Icon, name, description }: { icon: any; name: string; description: string }) {
   return (
@@ -60,7 +58,7 @@ export default function Technology() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
         <div className="absolute bottom-0 left-0 p-6">
-          <h2 className="text-xl font-bold text-white mb-1">End-to-End Pipeline</h2>
+          <h2 className="text-xl font-bold text-white mb-1">End-to-End Intelligence Pipeline</h2>
           <p className="text-sm text-white/70">From drone sensor to actionable insight in minutes</p>
         </div>
       </motion.div>
@@ -88,6 +86,7 @@ export default function Technology() {
           <TabsTrigger value="hardware" data-testid="tab-hardware">Hardware</TabsTrigger>
           <TabsTrigger value="software" data-testid="tab-software">Software</TabsTrigger>
           <TabsTrigger value="ai" data-testid="tab-ai">AI / ML</TabsTrigger>
+          <TabsTrigger value="integrations" data-testid="tab-integrations">Integrations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="hardware">
@@ -103,7 +102,7 @@ export default function Technology() {
             <Card className="p-5">
               <h3 className="font-semibold text-foreground mb-4">Sensor Suite</h3>
               <div className="space-y-0.5">
-                <TechStackItem icon={Thermometer} name="Water Temperature Sensor" description="Infrared thermal imaging for surface temperature mapping (0.1°C accuracy)" />
+                <TechStackItem icon={Thermometer} name="Water Temperature Sensor" description="Infrared thermal imaging for surface temperature mapping (0.1 C accuracy)" />
                 <TechStackItem icon={Droplets} name="pH & DO Sensors" description="Drop-probe sensors for pH level and dissolved oxygen readings at survey points" />
                 <TechStackItem icon={Leaf} name="Chlorophyll-a Fluorometer" description="Specialized sensor to directly measure chlorophyll concentration in water" />
               </div>
@@ -124,9 +123,9 @@ export default function Technology() {
             <Card className="p-5">
               <h3 className="font-semibold text-foreground mb-4">Backend</h3>
               <div className="space-y-0.5">
-                <TechStackItem icon={Server} name="Node.js + Express" description="RESTful API serving drone scan data and alert notifications" />
+                <TechStackItem icon={Server} name="Node.js + Express" description="RESTful API with streaming support for real-time data" />
                 <TechStackItem icon={Database} name="PostgreSQL + Drizzle ORM" description="Persistent storage for scan records, alerts, and historical data" />
-                <TechStackItem icon={Wifi} name="IBM webMethods Integration" description="Workflow automation for alert routing via API Connect" />
+                <TechStackItem icon={Cloud} name="Cloud Data Pipeline" description="Scalable ingestion and analytics for high-throughput sensor streams" />
               </div>
             </Card>
           </div>
@@ -137,31 +136,38 @@ export default function Technology() {
             <Card className="p-5">
               <h3 className="font-semibold text-foreground mb-4">Detection Models</h3>
               <div className="space-y-0.5">
-                <TechStackItem icon={Cpu} name="Algae Classifier (CNN)" description="ResNet-50 fine-tuned on 50,000+ labeled algae images. Classifies HAB species with 98% accuracy." />
+                <TechStackItem icon={Cpu} name="Algae Classifier (CNN)" description="ResNet-50 fine-tuned on 50,000+ labeled algae images with 98% accuracy" />
                 <TechStackItem icon={Leaf} name="NDVI Calculator" description="Normalized Difference Vegetation Index from multispectral bands: (NIR - Red) / (NIR + Red)" />
-                <TechStackItem icon={BarChart3} name="Bloom Predictor (LSTM)" description="Time-series model predicting algae bloom probability 72 hours ahead based on historical patterns." />
+                <TechStackItem icon={BarChart3} name="Bloom Predictor (LSTM)" description="Time-series model predicting algae bloom probability 72 hours ahead" />
               </div>
             </Card>
             <Card className="p-5">
-              <h3 className="font-semibold text-foreground mb-4">Data Pipeline</h3>
-              <div className="space-y-3">
-                {[
-                  "Raw multispectral images ingested from drone",
-                  "Preprocessing: Radiometric calibration & georeferencing",
-                  "Feature extraction: Band ratios, texture, chlorophyll-a",
-                  "CNN classification: Algae type & severity scoring",
-                  "NDVI mapping: Per-pixel vegetation health index",
-                  "LSTM prediction: 72-hour bloom forecast",
-                  "Alert generation: Threshold-based notification triggers",
-                  "Dashboard update: Real-time visualization refresh",
-                ].map((step, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <div className="w-5 h-5 rounded-sm bg-muted flex items-center justify-center shrink-0 mt-0.5">
-                      <span className="text-xs font-medium text-muted-foreground">{i + 1}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{step}</p>
-                  </div>
-                ))}
+              <h3 className="font-semibold text-foreground mb-4">AI Intelligence Layer</h3>
+              <div className="space-y-0.5">
+                <TechStackItem icon={Brain} name="Gemini AI Analysis" description="Multimodal AI generates comprehensive environmental impact reports from scan data" />
+                <TechStackItem icon={Mic} name="Voice Intelligence" description="Natural language voice narration for alerts and report summaries" />
+                <TechStackItem icon={Shield} name="Anomaly Detection" description="ML-based outlier detection flags unusual readings for immediate review" />
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="integrations">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Card className="p-5">
+              <h3 className="font-semibold text-foreground mb-4">Data & Analytics</h3>
+              <div className="space-y-0.5">
+                <TechStackItem icon={Database} name="Distributed Sensor Storage" description="High-throughput document storage for flexible sensor data schemas" />
+                <TechStackItem icon={Cloud} name="Cloud Analytics Warehouse" description="SQL-based analytics engine for historical trend analysis across all scan data" />
+                <TechStackItem icon={Server} name="Workflow Automation" description="Event-driven alert routing and notification delivery pipeline" />
+              </div>
+            </Card>
+            <Card className="p-5">
+              <h3 className="font-semibold text-foreground mb-4">Verification & Access</h3>
+              <div className="space-y-0.5">
+                <TechStackItem icon={Coins} name="Blockchain Verification" description="On-chain carbon credit tracking with transparent environmental impact audit trail" />
+                <TechStackItem icon={Brain} name="AI Advisory Engine" description="Sustainability guidance powered by multi-model AI with live data context" />
+                <TechStackItem icon={Wifi} name="Public API" description="RESTful API endpoints for third-party access to ocean health data" />
               </div>
             </Card>
           </div>
@@ -169,16 +175,16 @@ export default function Technology() {
       </Tabs>
 
       <Card className="p-6">
-        <h3 className="font-semibold text-foreground mb-4">IBM Integration Architecture</h3>
+        <h3 className="font-semibold text-foreground mb-4">Data Pipeline Architecture</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          We leverage IBM webMethods Hybrid Integration to automate the alert pipeline from drone data to stakeholder notifications.
+          Our end-to-end pipeline processes drone telemetry through AI classification, distributes results to analytics and blockchain layers, and triggers real-time alerts.
         </p>
         <div className="grid md:grid-cols-4 gap-3">
           {[
-            { label: "Drone API", desc: "HTTP trigger receives processed scan data" },
-            { label: "webMethods Workflow", desc: "No-code logic evaluates thresholds" },
-            { label: "API Connect", desc: "Published API with key-based security" },
-            { label: "Notifications", desc: "Slack, email, and SMS alert delivery" },
+            { label: "Drone API", desc: "HTTP trigger receives processed scan data and sensor readings" },
+            { label: "AI Processing", desc: "Gemini analysis and CNN classification in parallel" },
+            { label: "Data Distribution", desc: "Results stored in SQL, document DB, and analytics warehouse" },
+            { label: "Action Layer", desc: "Alerts, reports, carbon credits, and dashboard updates" },
           ].map((item, i) => (
             <div key={i} className="flex items-start gap-2">
               <div className="flex items-center gap-1 shrink-0 mt-1">

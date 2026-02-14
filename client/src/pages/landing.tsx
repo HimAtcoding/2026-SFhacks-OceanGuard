@@ -16,6 +16,10 @@ import {
   Activity,
   Scan,
   Target,
+  Shield,
+  Zap,
+  Brain,
+  Coins,
 } from "lucide-react";
 
 const fadeIn = {
@@ -77,26 +81,27 @@ export default function Landing() {
             className="max-w-3xl"
           >
             <Badge variant="outline" className="mb-6 border-white/30 text-white/90 bg-white/10 backdrop-blur-sm no-default-hover-elevate no-default-active-elevate">
-              SF Hacks 2026
+              AI-Powered Ocean Intelligence
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
-              Hack For a{" "}
-              <span className="text-primary">Greener</span>{" "}
-              Tomorrow
+              Protect Marine{" "}
+              <span className="text-primary">Ecosystems</span>{" "}
+              With Real-Time Data
             </h1>
             <p className="text-lg md:text-xl text-white/80 mb-8 max-w-2xl leading-relaxed">
-              AI-powered drone surveillance that scans ocean environments, detects algae blooms,
-              and monitors water quality in real-time to protect our marine ecosystems.
+              Autonomous drone surveillance that continuously monitors ocean environments,
+              detects harmful algae blooms, tracks water quality, and generates
+              AI-powered environmental impact reports.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/dashboard">
                 <Button data-testid="button-view-dashboard" className="gap-2">
-                  View Dashboard <ArrowRight className="h-4 w-4" />
+                  Live Dashboard <ArrowRight className="h-4 w-4" />
                 </Button>
               </Link>
-              <Link href="/pitch">
-                <Button data-testid="button-pitch-deck" variant="outline" className="gap-2 backdrop-blur-sm">
-                  Pitch Deck <BarChart3 className="h-4 w-4" />
+              <Link href="/reports">
+                <Button data-testid="button-ai-reports" variant="outline" className="gap-2 backdrop-blur-sm">
+                  AI Reports <Brain className="h-4 w-4" />
                 </Button>
               </Link>
             </div>
@@ -117,7 +122,7 @@ export default function Landing() {
               <StatCard icon={Scan} value="500+" label="Scans Completed" />
             </motion.div>
             <motion.div variants={fadeIn}>
-              <StatCard icon={Globe} value="12" label="Coastal Zones Monitored" />
+              <StatCard icon={Globe} value="12" label="Coastal Zones" />
             </motion.div>
             <motion.div variants={fadeIn}>
               <StatCard icon={Droplets} value="98%" label="Detection Accuracy" />
@@ -139,7 +144,7 @@ export default function Landing() {
           >
             <h2 className="text-3xl font-bold text-foreground mb-3">How It Works</h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              Our system combines drone technology with AI to provide comprehensive ocean health monitoring.
+              End-to-end pipeline from drone deployment to actionable environmental intelligence.
             </p>
           </motion.div>
 
@@ -149,9 +154,10 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Radar className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">1. Deploy Drone</h3>
+                <h3 className="font-semibold text-foreground mb-2">1. Deploy Drone Fleet</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Our autonomous drones fly over coastal and ocean areas, equipped with multispectral cameras and environmental sensors.
+                  Autonomous drones equipped with multispectral cameras and environmental sensors
+                  scan coastal and open-ocean areas on scheduled routes.
                 </p>
               </Card>
             </motion.div>
@@ -160,9 +166,10 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Activity className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">2. Analyze Data</h3>
+                <h3 className="font-semibold text-foreground mb-2">2. AI-Powered Analysis</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  AI algorithms process captured imagery and sensor readings to detect algae concentration, water quality, and vegetation health.
+                  Gemini AI and custom ML models process imagery and sensor data to detect
+                  algae concentration, water quality anomalies, and vegetation health in real time.
                 </p>
               </Card>
             </motion.div>
@@ -171,9 +178,10 @@ export default function Landing() {
                 <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center mx-auto mb-4">
                   <Target className="h-6 w-6 text-primary" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">3. Take Action</h3>
+                <h3 className="font-semibold text-foreground mb-2">3. Act on Intelligence</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Real-time alerts and detailed reports enable rapid response to harmful algae blooms and environmental threats.
+                  Real-time alerts, AI-generated reports, and carbon credit tracking
+                  enable rapid response to environmental threats and verified impact measurement.
                 </p>
               </Card>
             </motion.div>
@@ -189,9 +197,9 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center mb-12"
           >
-            <h2 className="text-3xl font-bold text-foreground mb-3">Core Capabilities</h2>
+            <h2 className="text-3xl font-bold text-foreground mb-3">Platform Capabilities</h2>
             <p className="text-muted-foreground max-w-lg mx-auto">
-              Comprehensive environmental monitoring powered by cutting-edge technology.
+              Comprehensive environmental monitoring powered by cutting-edge AI, distributed data systems, and blockchain verification.
             </p>
           </motion.div>
 
@@ -206,42 +214,42 @@ export default function Landing() {
               <FeatureCard
                 icon={Waves}
                 title="Algae Bloom Detection"
-                description="Real-time identification of harmful algal blooms using multispectral imaging and machine learning classification."
+                description="Real-time identification of harmful algal blooms using multispectral imaging and deep learning classification with 98% accuracy."
               />
             </motion.div>
             <motion.div variants={fadeIn}>
               <FeatureCard
                 icon={Droplets}
-                title="Water Quality Analysis"
-                description="Measure pH levels, dissolved oxygen, turbidity, and temperature across large water bodies simultaneously."
+                title="Water Quality Monitoring"
+                description="Continuous measurement of pH, dissolved oxygen, turbidity, and temperature across large water bodies with distributed sensor streams."
               />
             </motion.div>
             <motion.div variants={fadeIn}>
               <FeatureCard
-                icon={Leaf}
-                title="Greenery Index Mapping"
-                description="Calculate normalized difference vegetation indices to assess coastal vegetation and marine plant health."
+                icon={Brain}
+                title="AI Environmental Reports"
+                description="Gemini-powered analysis generates comprehensive environmental impact assessments with trend detection and predictive modeling."
               />
             </motion.div>
             <motion.div variants={fadeIn}>
               <FeatureCard
-                icon={Thermometer}
-                title="Thermal Monitoring"
-                description="Track water temperature anomalies that may indicate pollution discharge or ecosystem stress."
+                icon={Coins}
+                title="Carbon Credit Verification"
+                description="Blockchain-backed carbon offset tracking with transparent, on-chain verification of environmental impact and conservation efforts."
               />
             </motion.div>
             <motion.div variants={fadeIn}>
               <FeatureCard
-                icon={Wind}
-                title="Environmental Alerts"
-                description="Automated alert system triggers notifications when readings exceed safe thresholds for aquatic life."
+                icon={Shield}
+                title="Automated Alert System"
+                description="Intelligent threshold monitoring triggers instant notifications when environmental readings exceed safe limits for aquatic life."
               />
             </motion.div>
             <motion.div variants={fadeIn}>
               <FeatureCard
-                icon={BarChart3}
-                title="Historical Analytics"
-                description="Track environmental trends over time with comprehensive dashboards and exportable data reports."
+                icon={Zap}
+                title="Real-Time Data Pipeline"
+                description="Scalable data ingestion processes thousands of sensor readings per minute with cloud-native analytics and historical trend analysis."
               />
             </motion.div>
           </motion.div>
@@ -268,19 +276,19 @@ export default function Landing() {
               viewport={{ once: true }}
             >
               <h2 className="text-3xl font-bold text-foreground mb-4">
-                Built for Impact
+                Built for Real Impact
               </h2>
               <p className="text-muted-foreground leading-relaxed mb-6">
-                Our solution addresses multiple critical environmental challenges. By combining
-                hardware innovation with AI-powered analytics, we provide actionable insights that
-                help researchers, municipalities, and environmental agencies protect marine ecosystems.
+                OceanGuard combines autonomous drone hardware with AI-powered analytics
+                and blockchain verification to deliver actionable intelligence for researchers,
+                municipalities, and environmental agencies protecting marine ecosystems worldwide.
               </p>
               <div className="flex flex-wrap gap-2">
                 <Badge>Climate Action</Badge>
-                <Badge variant="secondary">Hardware Innovation</Badge>
-                <Badge variant="secondary">AI/ML</Badge>
-                <Badge variant="secondary">Sustainability</Badge>
-                <Badge variant="secondary">Open Data</Badge>
+                <Badge variant="secondary">AI Intelligence</Badge>
+                <Badge variant="secondary">Real-Time Data</Badge>
+                <Badge variant="secondary">Carbon Tracking</Badge>
+                <Badge variant="secondary">Open Platform</Badge>
               </div>
             </motion.div>
           </div>
@@ -290,7 +298,7 @@ export default function Landing() {
       <section className="py-16 border-t border-border">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-sm text-muted-foreground">
-            Hack For Greener Tomorrow &mdash; SF Hacks 2026
+            OceanGuard &mdash; AI-Powered Ocean Health Intelligence
           </p>
         </div>
       </section>

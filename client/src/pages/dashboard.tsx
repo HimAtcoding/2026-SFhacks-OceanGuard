@@ -23,6 +23,8 @@ import {
   Radio,
   RefreshCw,
   Satellite,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import {
   AreaChart,
@@ -195,8 +197,39 @@ function LoadingSkeleton() {
   );
 }
 
+function useVoiceNarration() {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const speak = (text: string) => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.volume = 0.9;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v => v.name.includes("Google") || v.name.includes("Samantha") || v.lang === "en-US");
+      if (preferred) utterance.voice = preferred;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const stop = () => {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  return { speak, stop, isSpeaking };
+}
+
 export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const { speak, stop, isSpeaking } = useVoiceNarration();
 
   const { data: scans, isLoading: scansLoading } = useQuery<DroneScan[]>({
     queryKey: ["/api/scans"],
@@ -266,6 +299,23 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            size="icon"
+            variant="ghost"
+            data-testid="button-voice-narration"
+            onClick={() => {
+              if (isSpeaking) {
+                stop();
+              } else {
+                const healthStatus = avgQuality > 70 ? "good" : avgQuality > 50 ? "moderate" : "concerning";
+                const algaeStatus = avgAlgae > 50 ? "elevated" : "within normal range";
+                const narration = `OceanGuard status update. Currently monitoring ${latestScans.length} scan zones. Overall ocean health is ${healthStatus} with average water quality at ${avgQuality.toFixed(0)} percent. Algae levels are ${algaeStatus} at ${avgAlgae.toFixed(0)} percent. Average temperature is ${avgTemp.toFixed(1)} degrees celsius. Greenery index is ${avgGreenery.toFixed(2)}. There are ${activeAlerts.length} active environmental alerts requiring attention.`;
+                speak(narration);
+              }
+            }}
+          >
+            {isSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </Button>
           {activeAlerts.length > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertTriangle className="h-3 w-3" />

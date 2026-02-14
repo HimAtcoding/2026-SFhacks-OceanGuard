@@ -14,17 +14,19 @@ import {
 import {
   Home,
   BarChart3,
-  Presentation,
-  Trophy,
+  FileText,
   Cpu,
   Waves,
+  Coins,
+  Activity,
 } from "lucide-react";
 
 const navItems = [
   { title: "Home", url: "/", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "Pitch Deck", url: "/pitch", icon: Presentation },
-  { title: "Tracks", url: "/tracks", icon: Trophy },
+  { title: "AI Reports", url: "/reports", icon: FileText },
+  { title: "Carbon Credits", url: "/carbon", icon: Coins },
+  { title: "Analytics", url: "/analytics", icon: Activity },
   { title: "Technology", url: "/technology", icon: Cpu },
 ];
 
@@ -40,15 +42,15 @@ export function AppSidebar() {
               <Waves className="h-4 w-4 text-primary-foreground" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-sidebar-foreground leading-tight">Greener Tomorrow</p>
-              <p className="text-xs text-muted-foreground leading-tight">Ocean Monitor</p>
+              <p className="text-sm font-semibold text-sidebar-foreground leading-tight">OceanGuard</p>
+              <p className="text-xs text-muted-foreground leading-tight">AI Monitoring</p>
             </div>
           </div>
         </Link>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => (
@@ -69,7 +71,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-4">
-        <p className="text-xs text-muted-foreground">SF Hacks 2026</p>
+        <p className="text-xs text-muted-foreground">v1.0 &middot; Real-time Ocean Intelligence</p>
       </SidebarFooter>
     </Sidebar>
   );

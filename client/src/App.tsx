@@ -9,9 +9,10 @@ import { ThemeProvider, ThemeToggle } from "@/components/theme-provider";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
-import PitchDeck from "@/pages/pitch";
-import Tracks from "@/pages/tracks";
 import Technology from "@/pages/technology";
+import Reports from "@/pages/reports";
+import CarbonCredits from "@/pages/carbon";
+import Analytics from "@/pages/analytics";
 import { Chatbot } from "@/components/chatbot";
 
 function Router() {
@@ -19,8 +20,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/dashboard" component={Dashboard} />
-      <Route path="/pitch" component={PitchDeck} />
-      <Route path="/tracks" component={Tracks} />
+      <Route path="/reports" component={Reports} />
+      <Route path="/carbon" component={CarbonCredits} />
+      <Route path="/analytics" component={Analytics} />
       <Route path="/technology" component={Technology} />
       <Route component={NotFound} />
     </Switch>
