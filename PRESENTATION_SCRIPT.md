@@ -23,16 +23,6 @@ That's why we built OceanGuard. OceanGuard is a self-planning AI system for ocea
 
 Let us show you how.
 
----
-
-## PART 3: INTERACTIVE MAP & PREDICTIONS (~45 seconds)
-
-**[Navigate to Tracking tab, click a city like Tokyo or Cape Town]**
-
-Here we have a general overview of some big cities, taken through real-time data from CNN. We monitor twenty cities around the world. You can see each one on this interactive 3D globe with real-time data -- kelp health, trash levels, quality scores. When you click into a city, the globe zooms in and you get a detailed breakdown of what's happening in that region.Green pulsing rings are kelp forests -- healthy ecosystems acting as carbon sinks. Red rings are trash concentration zones. You can see animated ocean currents showing flow direction, topographic terrain data, and ecosystem markers for things like marine protected areas, coral reefs, and shipping corridors.
-
----
-
 ## PART 4: SELF-ORGANIZED CLEANUPS (~60 seconds)
 
 **[Navigate to Cleanup tab]**
@@ -50,6 +40,8 @@ And here's where it gets interesting. The platform makes real phone calls. Using
 **[Show Solana donation section]**
 
 For funding, we built a donation system on the Solana blockchain. People can donate directly to specific operations -- trash bags, safety equipment, research funding -- with real on-chain transactions on Solana devnet.
+
+---
 
 ---
 
@@ -76,6 +68,13 @@ AI Reports uses Gemini to generate full environmental analysis reports with stre
 And the Carbon Credits page tracks conservation impact with a blockchain-style transaction ledger and accumulation chart.
 
 ---
+
+**[Navigate to Tracking tab, click a city like Tokyo or Cape Town]**
+
+Here we have a general overview of some big cities, taken through real-time data from CNN. We monitor twenty cities around the world. You can see each one on this interactive 3D globe with real-time data -- kelp health, trash levels, quality scores. When you click into a city, the globe zooms in and you get a detailed breakdown of what's happening in that region.Green pulsing rings are kelp forests -- healthy ecosystems acting as carbon sinks. Red rings are trash concentration zones. You can see animated ocean currents showing flow direction, topographic terrain data, and ecosystem markers for things like marine protected areas, coral reefs, and shipping corridors.
+
+---
+
 
 ## PART 7: EDGE AI & WRAP-UP (~20 seconds)
 
