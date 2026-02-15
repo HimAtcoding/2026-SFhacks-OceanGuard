@@ -1,25 +1,101 @@
-# OceanGuard - 3 Minute Demo Script
+# OceanGuard - Presentation Script (3-5 Minutes)
 
 ---
 
-Hey everyone, we're here to show you OceanGuard -- an AI-powered platform we built to tackle one of the biggest environmental problems we have: ocean pollution.
+## PART 1: THE PROBLEM (~45 seconds)
 
-So here's the idea. We have a fleet of drones scanning coastlines around the world, collecting data on water quality, algae levels, debris -- all of it. That data feeds into our real-time dashboard, where you can see live scans coming in every thirty seconds, environmental alerts, and key health metrics. And if you don't feel like reading through all of it, you can just hit this button and it'll narrate the entire ocean status out loud using ElevenLabs voice synthesis.
+**[Open Food Chain tab]**
 
-But monitoring one beach isn't enough. We built a full 3D globe -- you can spin it, click on any of our twenty monitored cities from Tokyo to Cape Town -- and instantly see kelp density, trash levels, and quality scores. The cool part is the prediction engine. It forecasts where trash and kelp are going to drift over the next six, twelve, twenty-four, and forty-eight hours using movement vector analysis, so cleanup crews know exactly where to go before the debris even arrives.
+Every second breath you take comes from the ocean. Phytoplankton -- microscopic organisms most people have never heard of -- produce 50 to 80 percent of all oxygen on Earth. More than every forest on the planet combined.
 
-That leads into the Cleanup Dashboard. Every operation is ranked by urgency, you can see seven-day weather forecasts with cleanup suitability ratings, and we've got a full funding system built on the Solana blockchain. People can donate directly to specific operations -- trash bags, safety equipment, drone maintenance, research -- all on Solana devnet, with real transaction signatures.
+But here's what's happening. Global phytoplankton populations have declined by 40 percent since 1950. And they're the base of the entire marine food chain.
 
-But we didn't stop at logistics. When it's time to coordinate a cleanup, the platform actually calls people. Using Twilio, our AI agent -- powered by Broxi AI with ElevenLabs for a natural-sounding voice -- makes outreach calls to site contacts, asks real questions about access, permits, timing, conditions, and safety, and figures out whether a cleanup is feasible. It's a full multi-turn conversation, not some robotic script.
+**[Click through organisms on the food chain page]**
 
-And for each cleanup operation, we use AI to generate paid job listings on the fly -- safety officers, drone operators, logistics coordinators -- with realistic certifications, hourly rates, and shift details. You expand an operation and the AI builds positions tailored to that specific cleanup.
+When you remove apex predators like sharks -- down 71 percent -- it triggers what's called a trophic cascade. Mid-level predators boom, forage fish destabilize, zooplankton falls out of balance, and phytoplankton -- the organisms we depend on for oxygen -- collapse.
 
-On the intelligence side, we've got Gemini generating full environmental reports with streaming, Snowflake Cortex running deep data analysis on our analytics page, and MongoDB Atlas mirroring everything for redundancy. We also built a carbon credit ledger that tracks conservation impact on-chain.
+**[Toggle to the pessimistic climate scenario]**
 
-For education, we have an interactive ocean food chain where you can click through organisms, see trophic cascades, toggle between climate scenarios -- and a School Scoreboard where schools compete by logging cleanups, donations, and classroom missions.
+Under a worst-case scenario, we're looking at a 70 percent loss of phytoplankton and 90 percent loss of kelp forests. That's not just a marine problem. That's a breathing problem.
 
-And for the edge case -- literally -- we showcase ExecuTorch, deploying PyTorch models directly onto drone hardware for offline inference at under five milliseconds.
+And on top of all that, ocean pollution -- plastic debris, chemical runoff, industrial waste -- is accelerating this collapse. The question is: who's coordinating the response?
 
-There's also GreenBot, our sustainability chatbot powered by Broxi AI, available on every page.
+---
 
-That's OceanGuard -- real-time monitoring, predictive intelligence, coordinated action, and community engagement, all in one platform. Thanks.
+## PART 2: THE SOLUTION -- WHAT IS OCEANGUARD (~30 seconds)
+
+**[Navigate to Landing Page]**
+
+That's what OceanGuard is. It's an AI system that self-plans cleanup efforts based on real-time pollution data. It identifies where debris is concentrated, predicts where it's heading, organizes cleanup operations, reaches out to local centers and contacts on its own, onboards volunteers, generates paid job listings, handles donations -- and tracks the environmental impact of every action taken.
+
+It's not a dashboard you stare at. It's a system that acts.
+
+Let me walk you through how each piece works.
+
+---
+
+## PART 3: INTERACTIVE MAP & PREDICTIONS (~45 seconds)
+
+**[Navigate to Tracking tab, click a city like Tokyo or Cape Town]**
+
+We monitor twenty cities around the world. When you click into a city, the 3D globe zooms in and you see five data layers you can toggle independently. Green pulsing rings are kelp forests -- healthy ecosystems acting as carbon sinks. Red rings are trash concentration zones. You can see animated ocean currents showing flow direction, topographic terrain data, and ecosystem markers for things like marine protected areas, coral reefs, and shipping corridors.
+
+**[Show prediction arcs]**
+
+But the critical feature here is the prediction engine. It forecasts where debris and kelp are going to drift over the next 6, 12, 24, and 48 hours using movement vector analysis. So cleanup crews don't go where the trash is now -- they go where it's going to be.
+
+---
+
+## PART 4: SELF-ORGANIZED CLEANUPS (~60 seconds)
+
+**[Navigate to Cleanup tab]**
+
+This is the Cleanup Dashboard. Operations are ranked by urgency based on real trash levels and kelp health data. You can see weather forecasts with cleanup suitability ratings so teams aren't sent out into bad conditions.
+
+**[Expand an operation to show job listings]**
+
+When you expand an operation, the AI generates paid job listings tailored to that specific cleanup -- safety officers, logistics coordinators, marine biologists -- with certifications, hourly rates, and shift details. These aren't templates. They're generated contextually based on the operation's location, scope, and requirements.
+
+**[Show the call button and live transcript]**
+
+And here's where it gets interesting. The platform makes real phone calls. Using Twilio and ElevenLabs for a natural-sounding voice, our AI agent calls site contacts ahead of time. It's not a robotic script -- it's a multi-turn conversation. The AI introduces OceanGuard, explains the proposed cleanup, and then asks follow-up questions about access, permits, timing, site conditions, and safety concerns. It tracks which topics have been covered and determines whether the site is available. You can watch the transcript update live as the call happens.
+
+**[Show Solana donation section]**
+
+For funding, we built a donation system on the Solana blockchain. People can donate directly to specific operations -- trash bags, safety equipment, research funding -- with real on-chain transactions on Solana devnet.
+
+---
+
+## PART 5: SCHOOL SCOREBOARD (~30 seconds)
+
+**[Navigate to Scoreboard tab]**
+
+We also built a way to get students involved. The School Scoreboard is a competition system where schools adopt cities and earn points for real-world actions -- classroom missions, cleanup events, fundraising, and awareness activities. Schools are ranked on a leaderboard you can filter by time period, school type, or city. Each school has a profile showing their points breakdown and action history. The idea is to make ocean conservation competitive and trackable for the next generation.
+
+---
+
+## PART 6: DATA & INTELLIGENCE TABS (~30 seconds)
+
+**[Briefly show each tab]**
+
+On the intelligence side -- the Analytics page gives you radar charts, zone comparisons, and sensor trend data, with Snowflake Cortex running AI-powered analysis on the underlying data.
+
+**[Switch to Reports]**
+
+AI Reports uses Gemini to generate full environmental analysis reports with streaming -- you can select a date range and get a comprehensive breakdown of kelp health, trash trends, and recommended actions.
+
+**[Switch to Carbon Credits]**
+
+And the Carbon Credits page tracks conservation impact with a blockchain-style transaction ledger and accumulation chart.
+
+---
+
+## PART 7: EDGE AI & WRAP-UP (~20 seconds)
+
+**[Navigate to Edge AI tab]**
+
+Finally, we have ExecuTorch -- this is a proof of concept for deploying PyTorch models directly onto edge hardware for real-time scanning in the field. Think coral health classification and debris detection running at under five milliseconds, completely offline. This is where the platform is heading for on-the-ground data collection.
+
+**[Return to Landing Page]**
+
+That's OceanGuard. It sees where the problem is, predicts where it's going, organizes the response, makes the calls, creates the jobs, funds the effort, and gets communities involved. Thanks.
