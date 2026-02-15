@@ -271,7 +271,7 @@ function generateEcoMarkers(city: CityMonitor) {
     lng: city.longitude + m.offset.lng / cosLat,
     text: m.title,
     size: 0.55,
-    color: () => m.colorHex,
+    color: m.colorHex,
     dotRadius: 0.25,
     info: { title: m.title, description: m.description, stats: m.stats },
   }));
@@ -491,7 +491,7 @@ function GlobeComponent({
         pointLat="lat"
         pointLng="lng"
         pointRadius="size"
-        pointColor="color"
+        pointColor={(d: any) => d.color || "#0ea5e9"}
         pointAltitude={0.01}
         onPointClick={(point: any) => {
           if (point.city) {
@@ -504,7 +504,7 @@ function GlobeComponent({
         arcStartLng="startLng"
         arcEndLat="endLat"
         arcEndLng="endLng"
-        arcColor="color"
+        arcColor={(d: any) => d.color || "rgba(6, 182, 212, 0.5)"}
         arcStroke="stroke"
         arcDashLength={0.4}
         arcDashGap={0.15}
@@ -514,7 +514,7 @@ function GlobeComponent({
         pathPoints="points"
         pathPointLat={(p: any) => p.lat}
         pathPointLng={(p: any) => p.lng}
-        pathColor="color"
+        pathColor={(d: any) => d.color || "rgba(6, 182, 212, 0.5)"}
         pathStroke="stroke"
         pathDashLength={0.15}
         pathDashGap={0.06}
@@ -527,14 +527,14 @@ function GlobeComponent({
         ringMaxRadius="maxR"
         ringPropagationSpeed="speed"
         ringRepeatPeriod="period"
-        ringColor="color"
+        ringColor={(d: any) => d.color}
         onRingClick={(ring: any) => { if (ring?.info) setInfoData(ring.info); }}
         labelsData={ecoLabels}
         labelLat="lat"
         labelLng="lng"
         labelText="text"
         labelSize="size"
-        labelColor="color"
+        labelColor={(d: any) => d.color || "#0ea5e9"}
         labelDotRadius="dotRadius"
         labelResolution={2}
         labelAltitude={0.01}
