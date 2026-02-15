@@ -17,6 +17,7 @@ import Tracking from "@/pages/tracking";
 import Cleanup from "@/pages/cleanup";
 import Education from "@/pages/education";
 import ExecuTorchPage from "@/pages/executorch";
+import FoodChain from "@/pages/food-chain";
 import { Chatbot } from "@/components/chatbot";
 
 function Router() {
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/technology" component={Technology} />
       <Route path="/education" component={Education} />
       <Route path="/edge-ai" component={ExecuTorchPage} />
+      <Route path="/food-chain" component={FoodChain} />
       <Route component={NotFound} />
     </Switch>
   );

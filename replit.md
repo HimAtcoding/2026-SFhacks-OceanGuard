@@ -4,6 +4,7 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Added interactive Ocean Food Chain page (/food-chain) with clickable organisms, trophic cascade visualization, climate impact explanations, and oxygen production connection
 - 2026-02-15: Added Snowflake Cortex AI integration (server/snowflake.ts) with LLM-powered ocean data analysis on Analytics page
 - 2026-02-15: Rewrote call verification system: Snowflake Cortex AI generates conversational responses, ElevenLabs provides TTS, Twilio handles calls + speech recognition via webhooks
 - 2026-02-15: Added Twilio webhook endpoints (/api/twilio/answer, /api/twilio/process-speech, /api/twilio/status) with signature validation
@@ -56,7 +57,8 @@ AI-powered drone ocean health monitoring platform. Features real-time dashboard 
 5. `/reports` - AI-powered environmental reports (Gemini streaming) with date range, kelp/trash analysis
 6. `/carbon` - Carbon credit tracking with transaction ledger and accumulation chart
 7. `/analytics` - Deep analytics with radar chart, zone comparison, sensor trends
-8. `/technology` - Hardware, software, AI/ML, and integrations tech stack
+8. `/food-chain` - Interactive ocean food chain with clickable organisms, trophic cascade, climate impact, oxygen production
+9. `/technology` - Hardware, software, AI/ML, and integrations tech stack
 
 ## Key Components
 - `client/src/components/chatbot.tsx` - Floating AI chatbot (GreenBot)
