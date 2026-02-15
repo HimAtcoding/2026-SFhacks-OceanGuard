@@ -11,6 +11,66 @@ Your goals:
 
 Be professional, friendly, and concise. Keep the call under 2 minutes.`;
 
+let cachedPhoneNumberId: string | null = null;
+
+async function importTwilioPhoneNumber(): Promise<string> {
+  const apiKey = await getElevenLabsApiKey();
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!twilioSid || !twilioToken || !twilioPhone) {
+    throw new Error("Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)");
+  }
+
+  const formattedPhone = twilioPhone.startsWith("+") ? twilioPhone : `+${twilioPhone}`;
+
+  const listRes = await fetch("https://api.elevenlabs.io/v1/convai/phone-numbers", {
+    headers: { "xi-api-key": apiKey },
+  });
+
+  if (listRes.ok) {
+    const listData = await listRes.json();
+    const numbers = listData?.phone_numbers || listData || [];
+    const existing = Array.isArray(numbers)
+      ? numbers.find((p: any) => p.phone_number === formattedPhone)
+      : null;
+    if (existing?.phone_number_id) {
+      console.log("Found existing ElevenLabs phone number:", existing.phone_number_id);
+      return existing.phone_number_id;
+    }
+  }
+
+  const response = await fetch("https://api.elevenlabs.io/v1/convai/phone-numbers", {
+    method: "POST",
+    headers: {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      label: "OceanGuard Cleanup Verifier",
+      phone_number: formattedPhone,
+      twilio_account_sid: twilioSid,
+      twilio_auth_token: twilioToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Failed to import phone number: ${response.status} - ${errText}`);
+  }
+
+  const data = await response.json();
+  console.log("Imported Twilio phone number into ElevenLabs:", data.phone_number_id);
+  return data.phone_number_id;
+}
+
+async function getPhoneNumberId(): Promise<string> {
+  if (cachedPhoneNumberId) return cachedPhoneNumberId;
+  cachedPhoneNumberId = await importTwilioPhoneNumber();
+  return cachedPhoneNumberId;
+}
+
 export async function createCleanupVerificationAgent(): Promise<string> {
   const apiKey = await getElevenLabsApiKey();
 
@@ -54,17 +114,27 @@ export async function initiateOutboundCall(
 ): Promise<{ conversationId: string; status: string }> {
   const apiKey = await getElevenLabsApiKey();
 
-  const response = await fetch("https://api.elevenlabs.io/v1/convai/conversation/get_signed_url", {
-    method: "GET",
-    headers: {
-      "xi-api-key": apiKey,
-    },
-  });
+  const hasTwilio = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER;
 
-  if (!response.ok) {
-    const err = await response.text();
-    console.error("ElevenLabs signed URL error:", err);
+  if (!hasTwilio) {
+    return {
+      conversationId: `demo_${Date.now()}`,
+      status: "demo_mode",
+    };
   }
+
+  let phoneNumberId: string;
+  try {
+    phoneNumberId = await getPhoneNumberId();
+  } catch (err: any) {
+    console.error("Failed to get phone number ID:", err.message);
+    return {
+      conversationId: `demo_${Date.now()}`,
+      status: "demo_mode",
+    };
+  }
+
+  const formattedTo = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
 
   const callResponse = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
     method: "POST",
@@ -74,7 +144,8 @@ export async function initiateOutboundCall(
     },
     body: JSON.stringify({
       agent_id: agentId,
-      to_number: phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`,
+      agent_phone_number_id: phoneNumberId,
+      to_number: formattedTo,
       conversation_initiation_client_data: {
         cleanup_id: cleanupId,
         operation_name: operationName,
@@ -84,10 +155,9 @@ export async function initiateOutboundCall(
 
   if (!callResponse.ok) {
     const errText = await callResponse.text();
-    let parsed: any = {};
-    try { parsed = JSON.parse(errText); } catch {}
-    
-    if (parsed?.detail?.includes("phone") || parsed?.detail?.includes("twilio") || callResponse.status === 422) {
+    console.error("ElevenLabs outbound call error:", callResponse.status, errText);
+    if (callResponse.status === 422 || callResponse.status === 400) {
+      console.log("Falling back to demo mode due to validation error");
       return {
         conversationId: `demo_${Date.now()}`,
         status: "demo_mode",

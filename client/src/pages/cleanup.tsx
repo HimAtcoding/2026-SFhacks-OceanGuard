@@ -113,6 +113,8 @@ function FundingBar({ goal, raised }: { goal: number; raised: number }) {
 function CallButton({ cleanupId, operationName }: { cleanupId: string; operationName: string }) {
   const [calling, setCalling] = useState(false);
   const [callResult, setCallResult] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState("19255491150");
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
 
   const { data: callLogs } = useQuery<CallLog[]>({
     queryKey: ["/api/call-logs", cleanupId],
@@ -125,12 +127,13 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
   const callMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", `/api/cleanup/${cleanupId}/call`, {
-        phoneNumber: "19255491150",
+        phoneNumber,
       });
       return res.json();
     },
     onSuccess: (data) => {
       setCallResult(data.message);
+      setShowPhoneInput(false);
       queryClient.invalidateQueries({ queryKey: ["/api/call-logs", cleanupId] });
     },
     onError: (err: any) => {
@@ -138,7 +141,17 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
     },
   });
 
+  const isValidPhone = /^\+?\d{10,15}$/.test(phoneNumber);
+
   const handleCall = async () => {
+    if (!showPhoneInput) {
+      setShowPhoneInput(true);
+      return;
+    }
+    if (!isValidPhone) {
+      setCallResult("Invalid phone number. Use digits with country code (e.g. 19255491150).");
+      return;
+    }
     setCalling(true);
     setCallResult(null);
     await callMutation.mutateAsync();
@@ -149,6 +162,18 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
 
   return (
     <div className="space-y-2">
+      {showPhoneInput && (
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-medium text-muted-foreground">Phone number to call (with country code)</label>
+          <Input
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
+            placeholder="19255491150"
+            className="text-xs"
+            data-testid={`input-phone-${cleanupId}`}
+          />
+        </div>
+      )}
       <Button
         size="sm"
         variant="outline"
@@ -162,8 +187,19 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
         ) : (
           <PhoneCall className="h-3 w-3" />
         )}
-        {calling ? "Calling..." : "Verify Availability"}
+        {calling ? "Calling..." : showPhoneInput ? "Place Call" : "Verify Availability"}
       </Button>
+      {showPhoneInput && !calling && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowPhoneInput(false)}
+          className="w-full text-xs"
+          data-testid={`button-cancel-call-${cleanupId}`}
+        >
+          Cancel
+        </Button>
+      )}
       {callResult && (
         <p className={`text-[10px] ${callResult.includes("failed") ? "text-destructive" : "text-chart-2"}`}>
           {callResult}
