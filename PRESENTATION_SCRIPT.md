@@ -2,23 +2,17 @@
 
 ---
 
-## PART 1: THE PROBLEM (~45 seconds)
+## PART 1: THE PROBLEM (~40 seconds)
 
 **[Open Food Chain tab]**
 
-Every second breath you take comes from the ocean. Phytoplankton -- microscopic organisms most people have never heard of -- produce 50 to 80 percent of all oxygen on Earth. More than every forest on the planet combined.
+Every second breath you take comes from the ocean. Not trees -- the ocean. Phytoplankton produce 50 to 80 percent of Earth's oxygen, and they've declined 40 percent since 1950. Nobody's talking about it.
 
-But here's what's happening. Global phytoplankton populations have declined by 40 percent since 1950. And they're the base of the entire marine food chain.
+**[Click through organisms, toggle pessimistic scenario]**
 
-**[Click through organisms on the food chain page]**
+Sharks are down 71 percent. That triggers a chain reaction called a trophic cascade -- predators collapse, the food web destabilizes, and the organisms making our oxygen disappear. Worst case? 70 percent of phytoplankton gone. 90 percent of kelp forests gone. And ocean pollution is accelerating all of it.
 
-When you remove apex predators like sharks -- down 71 percent -- it triggers what's called a trophic cascade. Mid-level predators boom, forage fish destabilize, zooplankton falls out of balance, and phytoplankton -- the organisms we depend on for oxygen -- collapse.
-
-**[Toggle to the pessimistic climate scenario]**
-
-Under a worst-case scenario, we're looking at a 70 percent loss of phytoplankton and 90 percent loss of kelp forests. That's not just a marine problem. That's a breathing problem.
-
-And on top of all that, ocean pollution -- plastic debris, chemical runoff, industrial waste -- is accelerating this collapse. The question is: who's coordinating the response?
+So who's actually coordinating a response? Right now -- nobody. That's why we built OceanGuard.
 
 ---
 
