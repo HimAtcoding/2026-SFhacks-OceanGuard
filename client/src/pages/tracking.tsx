@@ -345,7 +345,7 @@ export default function Tracking() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Interactive 3D globe with real-time kelp &amp; trash predictions across {cities?.length || 0} coastal cities &middot; Data since Feb 14, 2025
+            Interactive 3D globe with real-time kelp &amp; trash predictions across {cities?.length || 0} coastal cities
           </p>
         </div>
       </div>

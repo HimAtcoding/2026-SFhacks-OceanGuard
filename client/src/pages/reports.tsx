@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Trash2,
   Globe,
-  Calendar,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -140,10 +139,6 @@ export default function Reports() {
           <p className="text-sm text-muted-foreground">
             Generate AI-powered environmental analysis reports from {totalScans} drone scans &middot; Avg water quality: {avgQuality}%
           </p>
-          <div className="flex items-center gap-1.5 mt-1.5">
-            <Calendar className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Historical data range: Feb 14, 2025 &ndash; Present</span>
-          </div>
         </div>
       </div>
 

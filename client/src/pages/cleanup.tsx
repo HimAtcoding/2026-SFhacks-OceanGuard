@@ -533,7 +533,7 @@ export default function Cleanup() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Manage marine debris cleanup operations &middot; Real-time tracking since Feb 14, 2025
+            Manage marine debris cleanup operations with real-time tracking
           </p>
         </div>
       </div>
