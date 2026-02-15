@@ -16,15 +16,13 @@ So who's actually coordinating a response? Right now -- nobody. That's why we bu
 
 ---
 
-## PART 2: THE SOLUTION -- WHAT IS OCEANGUARD (~30 seconds)
+## PART 2: THE SOLUTION -- WHAT IS OCEANGUARD (~20 seconds)
 
 **[Navigate to Landing Page]**
 
-That's what OceanGuard is. It's an AI system that self-plans cleanup efforts based on real-time pollution data. It identifies where debris is concentrated, predicts where it's heading, organizes cleanup operations, reaches out to local centers and contacts on its own, onboards volunteers, generates paid job listings, handles donations -- and tracks the environmental impact of every action taken.
+OceanGuard is a self-planning AI system for ocean cleanup. It takes real-world pollution data, figures out where to send crews, and handles everything from start to finish -- scouting locations, calling site contacts, posting jobs, onboarding volunteers, collecting donations, and tracking impact. End to end, no human has to organize a thing.
 
-It's not a dashboard you stare at. It's a system that acts.
-
-Let me walk you through how each piece works.
+Let me show you how.
 
 ---
 
