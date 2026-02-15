@@ -4,6 +4,13 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Added MongoDB Atlas data mirroring (server/mongodb.ts) - syncs scans, cities, tracks, cleanups, donations, alerts
+- 2026-02-15: Built ElevenLabs robocalling system (server/calling.ts) with call buttons per cleanup operation
+- 2026-02-15: Added funding goals (fundingGoal, fundingRaised) to cleanup operations with GoFundMe-style progress bars
+- 2026-02-15: Donations can link to specific cleanups via cleanupId, auto-updates fundingRaised
+- 2026-02-15: Added call_logs database table for tracking verification call status and transcripts
+- 2026-02-15: Created Sustainability Education page (/education) with K-12 lesson plans, college modules, live data explorer, API access
+- 2026-02-15: Built ExecuTorch on-device AI showcase page (/edge-ai) with live inference simulator and 4 edge models
 - 2026-02-15: Replaced 2D Leaflet map with interactive 3D globe (react-globe.gl) on tracking page
 - 2026-02-15: Added kelp/trash movement predictions (6h/12h/24h/48h) with animated arcs on globe
 - 2026-02-15: Added predictions API endpoint with vector projection forecasting

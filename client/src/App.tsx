@@ -15,6 +15,8 @@ import CarbonCredits from "@/pages/carbon";
 import Analytics from "@/pages/analytics";
 import Tracking from "@/pages/tracking";
 import Cleanup from "@/pages/cleanup";
+import Education from "@/pages/education";
+import ExecuTorchPage from "@/pages/executorch";
 import { Chatbot } from "@/components/chatbot";
 
 function Router() {
@@ -28,6 +30,8 @@ function Router() {
       <Route path="/carbon" component={CarbonCredits} />
       <Route path="/analytics" component={Analytics} />
       <Route path="/technology" component={Technology} />
+      <Route path="/education" component={Education} />
+      <Route path="/edge-ai" component={ExecuTorchPage} />
       <Route component={NotFound} />
     </Switch>
   );

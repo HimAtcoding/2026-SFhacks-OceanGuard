@@ -92,6 +92,8 @@ export const cleanupOperations = pgTable("cleanup_operations", {
   startDate: timestamp("start_date").defaultNow().notNull(),
   endDate: timestamp("end_date"),
   notes: text("notes"),
+  fundingGoal: real("funding_goal").default(0),
+  fundingRaised: real("funding_raised").default(0),
 });
 
 export const donations = pgTable("donations", {
@@ -102,6 +104,20 @@ export const donations = pgTable("donations", {
   txSignature: text("tx_signature"),
   status: text("status").notNull().default("pending"),
   donorName: text("donor_name"),
+  cleanupId: varchar("cleanup_id").references(() => cleanupOperations.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const callLogs = pgTable("call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cleanupId: varchar("cleanup_id").references(() => cleanupOperations.id),
+  phoneNumber: text("phone_number").notNull(),
+  status: text("status").notNull().default("initiated"),
+  duration: integer("duration"),
+  transcript: text("transcript"),
+  agentId: text("agent_id"),
+  conversationId: text("conversation_id"),
+  result: text("result"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -150,6 +166,16 @@ export const insertCleanupOperationSchema = createInsertSchema(cleanupOperations
   startDate: true,
 });
 
+export const insertDonationSchema = createInsertSchema(donations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCallLogSchema = createInsertSchema(callLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertDroneScan = z.infer<typeof insertDroneScanSchema>;
@@ -166,12 +192,8 @@ export type KelpTrashTrack = typeof kelpTrashTracks.$inferSelect;
 export type InsertKelpTrashTrack = z.infer<typeof insertKelpTrashTrackSchema>;
 export type CleanupOperation = typeof cleanupOperations.$inferSelect;
 export type InsertCleanupOperation = z.infer<typeof insertCleanupOperationSchema>;
-
-export const insertDonationSchema = createInsertSchema(donations).omit({
-  id: true,
-  createdAt: true,
-});
-
 export type Donation = typeof donations.$inferSelect;
 export type InsertDonation = z.infer<typeof insertDonationSchema>;
+export type CallLog = typeof callLogs.$inferSelect;
+export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
 export type AppSetting = typeof appSettings.$inferSelect;

@@ -6,11 +6,13 @@ import {
   type KelpTrashTrack, type InsertKelpTrashTrack,
   type CleanupOperation, type InsertCleanupOperation,
   type Donation, type InsertDonation,
+  type CallLog, type InsertCallLog,
   type AppSetting,
-  users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations, donations, appSettings,
+  users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations, donations, callLogs, appSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, and } from "drizzle-orm";
+import { syncToMongo } from "./mongodb";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -36,8 +38,12 @@ export interface IStorage {
   createCleanupOp(op: InsertCleanupOperation): Promise<CleanupOperation>;
   updateCleanupOp(id: string, data: Partial<InsertCleanupOperation>): Promise<CleanupOperation | undefined>;
   getDonations(): Promise<Donation[]>;
+  getDonationsByCleanup(cleanupId: string): Promise<Donation[]>;
   createDonation(donation: InsertDonation): Promise<Donation>;
   updateDonation(id: string, data: Partial<InsertDonation>): Promise<Donation | undefined>;
+  getCallLogs(cleanupId?: string): Promise<CallLog[]>;
+  createCallLog(log: InsertCallLog): Promise<CallLog>;
+  updateCallLog(id: string, data: Partial<InsertCallLog>): Promise<CallLog | undefined>;
   getSetting(key: string): Promise<AppSetting | undefined>;
   setSetting(key: string, value: string): Promise<AppSetting>;
 }
@@ -73,6 +79,7 @@ export class DatabaseStorage implements IStorage {
 
   async createScan(scan: InsertDroneScan): Promise<DroneScan> {
     const [newScan] = await db.insert(droneScans).values(scan).returning();
+    syncToMongo("drone_scans", newScan);
     return newScan;
   }
 
@@ -86,11 +93,13 @@ export class DatabaseStorage implements IStorage {
 
   async createAlert(alert: InsertAlert): Promise<Alert> {
     const [newAlert] = await db.insert(alerts).values(alert).returning();
+    syncToMongo("alerts", newAlert);
     return newAlert;
   }
 
   async resolveAlert(id: string): Promise<Alert | undefined> {
     const [updated] = await db.update(alerts).set({ resolved: true }).where(eq(alerts.id, id)).returning();
+    if (updated) syncToMongo("alerts", updated);
     return updated;
   }
 
@@ -105,11 +114,13 @@ export class DatabaseStorage implements IStorage {
 
   async createCity(city: InsertCityMonitor): Promise<CityMonitor> {
     const [newCity] = await db.insert(cityMonitors).values(city).returning();
+    syncToMongo("city_monitors", newCity);
     return newCity;
   }
 
   async updateCity(id: string, data: Partial<InsertCityMonitor>): Promise<CityMonitor | undefined> {
     const [updated] = await db.update(cityMonitors).set({ ...data, lastUpdated: new Date() } as any).where(eq(cityMonitors.id, id)).returning();
+    if (updated) syncToMongo("city_monitors", updated);
     return updated;
   }
 
@@ -129,6 +140,7 @@ export class DatabaseStorage implements IStorage {
 
   async createTrack(track: InsertKelpTrashTrack): Promise<KelpTrashTrack> {
     const [newTrack] = await db.insert(kelpTrashTracks).values(track).returning();
+    syncToMongo("kelp_trash_tracks", newTrack);
     return newTrack;
   }
 
@@ -142,11 +154,13 @@ export class DatabaseStorage implements IStorage {
 
   async createCleanupOp(op: InsertCleanupOperation): Promise<CleanupOperation> {
     const [newOp] = await db.insert(cleanupOperations).values(op).returning();
+    syncToMongo("cleanup_operations", newOp);
     return newOp;
   }
 
   async updateCleanupOp(id: string, data: Partial<InsertCleanupOperation>): Promise<CleanupOperation | undefined> {
     const [updated] = await db.update(cleanupOperations).set(data as any).where(eq(cleanupOperations.id, id)).returning();
+    if (updated) syncToMongo("cleanup_operations", updated);
     return updated;
   }
 
@@ -154,13 +168,45 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(donations).orderBy(desc(donations.createdAt));
   }
 
+  async getDonationsByCleanup(cleanupId: string): Promise<Donation[]> {
+    return db.select().from(donations).where(eq(donations.cleanupId, cleanupId)).orderBy(desc(donations.createdAt));
+  }
+
   async createDonation(donation: InsertDonation): Promise<Donation> {
     const [newDonation] = await db.insert(donations).values(donation).returning();
+    syncToMongo("donations", newDonation);
+    if (donation.cleanupId && donation.status === "completed") {
+      const ops = await db.select().from(cleanupOperations).where(eq(cleanupOperations.id, donation.cleanupId));
+      if (ops[0]) {
+        const newRaised = (ops[0].fundingRaised || 0) + donation.amount;
+        await db.update(cleanupOperations).set({ fundingRaised: newRaised } as any).where(eq(cleanupOperations.id, donation.cleanupId));
+      }
+    }
     return newDonation;
   }
 
   async updateDonation(id: string, data: Partial<InsertDonation>): Promise<Donation | undefined> {
     const [updated] = await db.update(donations).set(data as any).where(eq(donations.id, id)).returning();
+    if (updated) syncToMongo("donations", updated);
+    return updated;
+  }
+
+  async getCallLogs(cleanupId?: string): Promise<CallLog[]> {
+    if (cleanupId) {
+      return db.select().from(callLogs).where(eq(callLogs.cleanupId, cleanupId)).orderBy(desc(callLogs.createdAt));
+    }
+    return db.select().from(callLogs).orderBy(desc(callLogs.createdAt));
+  }
+
+  async createCallLog(log: InsertCallLog): Promise<CallLog> {
+    const [newLog] = await db.insert(callLogs).values(log).returning();
+    syncToMongo("call_logs", newLog);
+    return newLog;
+  }
+
+  async updateCallLog(id: string, data: Partial<InsertCallLog>): Promise<CallLog | undefined> {
+    const [updated] = await db.update(callLogs).set(data as any).where(eq(callLogs.id, id)).returning();
+    if (updated) syncToMongo("call_logs", updated);
     return updated;
   }
 

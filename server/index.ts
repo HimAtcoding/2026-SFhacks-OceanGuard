@@ -5,6 +5,7 @@ import { registerReportRoutes } from "./reports";
 import { startRealtimeEngine, startGlobalTrackingEngine } from "./realtime";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { connectMongo, runInitialSync } from "./mongodb";
 
 const app = express();
 const httpServer = createServer(app);
@@ -74,6 +75,13 @@ app.use((req, res, next) => {
   registerReportRoutes(app);
   startRealtimeEngine();
   startGlobalTrackingEngine();
+
+  connectMongo().then(async (mongoDb) => {
+    if (mongoDb) {
+      const { storage } = await import("./storage");
+      await runInitialSync(storage);
+    }
+  }).catch(err => console.error("MongoDB init error:", err));
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

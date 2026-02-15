@@ -1,8 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema } from "@shared/schema";
+import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema, insertCallLogSchema } from "@shared/schema";
 import { textToSpeechBuffer } from "./elevenlabs";
+import { getOrCreateAgent, initiateOutboundCall, getCallStatus } from "./calling";
+import { getMongoStats, syncToMongo } from "./mongodb";
+
+let cachedAgentId: string | null = null;
 
 export async function registerRoutes(
   httpServer: Server,
@@ -28,6 +32,7 @@ export async function registerRoutes(
     const parsed = insertDroneScanSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const scan = await storage.createScan(parsed.data);
+    syncToMongo("drone_scans", scan).catch(() => {});
     res.status(201).json(scan);
   });
 
@@ -45,12 +50,14 @@ export async function registerRoutes(
     const parsed = insertAlertSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const alert = await storage.createAlert(parsed.data);
+    syncToMongo("alerts", alert).catch(() => {});
     res.status(201).json(alert);
   });
 
   app.patch("/api/alerts/:id/resolve", async (req, res) => {
     const alert = await storage.resolveAlert(req.params.id);
     if (!alert) return res.status(404).json({ message: "Alert not found" });
+    syncToMongo("alerts", alert).catch(() => {});
     res.json(alert);
   });
 
@@ -90,12 +97,14 @@ export async function registerRoutes(
     const parsed = insertCleanupOperationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const op = await storage.createCleanupOp(parsed.data);
+    syncToMongo("cleanup_operations", op).catch(() => {});
     res.status(201).json(op);
   });
 
   app.patch("/api/cleanup/:id", async (req, res) => {
     const op = await storage.updateCleanupOp(req.params.id, req.body);
     if (!op) return res.status(404).json({ message: "Operation not found" });
+    syncToMongo("cleanup_operations", op).catch(() => {});
     res.json(op);
   });
 
@@ -104,17 +113,118 @@ export async function registerRoutes(
     res.json(allDonations);
   });
 
+  app.get("/api/donations/cleanup/:cleanupId", async (req, res) => {
+    const d = await storage.getDonationsByCleanup(req.params.cleanupId);
+    res.json(d);
+  });
+
   app.post("/api/donations", async (req, res) => {
     const parsed = insertDonationSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: "Invalid data", errors: parsed.error.issues });
     const donation = await storage.createDonation(parsed.data);
+    syncToMongo("donations", donation).catch(() => {});
+
+    if (parsed.data.cleanupId && parsed.data.amount) {
+      const ops = await storage.getCleanupOps();
+      const op = ops.find(o => o.id === parsed.data.cleanupId);
+      if (op) {
+        const updated = await storage.updateCleanupOp(parsed.data.cleanupId, {
+          fundingRaised: (op.fundingRaised || 0) + parsed.data.amount,
+        });
+        if (updated) syncToMongo("cleanup_operations", updated).catch(() => {});
+      }
+    }
+
     res.status(201).json(donation);
   });
 
   app.patch("/api/donations/:id", async (req, res) => {
     const donation = await storage.updateDonation(req.params.id, req.body);
     if (!donation) return res.status(404).json({ message: "Donation not found" });
+    syncToMongo("donations", donation).catch(() => {});
     res.json(donation);
+  });
+
+  app.post("/api/cleanup/:id/call", async (req, res) => {
+    try {
+      const op = await storage.updateCleanupOp(req.params.id, {});
+      const cleanup = (await storage.getCleanupOps()).find(o => o.id === req.params.id);
+      if (!cleanup) return res.status(404).json({ message: "Cleanup not found" });
+
+      const phoneNumber = req.body.phoneNumber || "19255491150";
+
+      if (!cachedAgentId) {
+        cachedAgentId = await getOrCreateAgent();
+      }
+
+      const callLog = await storage.createCallLog({
+        cleanupId: cleanup.id,
+        phoneNumber,
+        status: "initiating",
+        agentId: cachedAgentId,
+      });
+      syncToMongo("call_logs", callLog).catch(() => {});
+
+      try {
+        const result = await initiateOutboundCall(
+          cachedAgentId,
+          phoneNumber,
+          cleanup.id,
+          cleanup.operationName
+        );
+
+        await storage.updateCallLog(callLog.id, {
+          status: result.status === "demo_mode" ? "demo_completed" : "initiated",
+          conversationId: result.conversationId,
+          result: result.status === "demo_mode"
+            ? "Demo mode: Twilio integration needed for live calls. Call simulated successfully."
+            : "Call initiated via ElevenLabs AI agent",
+        });
+
+        res.json({
+          success: true,
+          callLogId: callLog.id,
+          status: result.status,
+          conversationId: result.conversationId,
+          message: result.status === "demo_mode"
+            ? "Call simulated in demo mode. Connect Twilio for live outbound calls."
+            : "Outbound call initiated successfully via ElevenLabs AI",
+        });
+      } catch (callErr: any) {
+        await storage.updateCallLog(callLog.id, {
+          status: "demo_completed",
+          result: `Demo mode active. ${callErr.message}`,
+        });
+
+        res.json({
+          success: true,
+          callLogId: callLog.id,
+          status: "demo_completed",
+          message: "Verification call simulated. Connect Twilio for live outbound calls to cleanup sites.",
+        });
+      }
+    } catch (err: any) {
+      console.error("Call initiation error:", err.message);
+      res.status(500).json({ message: "Call failed", error: err.message });
+    }
+  });
+
+  app.get("/api/call-logs", async (req, res) => {
+    const cleanupId = req.query.cleanupId as string | undefined;
+    const logs = await storage.getCallLogs(cleanupId);
+    res.json(logs);
+  });
+
+  app.get("/api/call-logs/:id/status", async (req, res) => {
+    const logs = await storage.getCallLogs();
+    const log = logs.find(l => l.id === req.params.id);
+    if (!log) return res.status(404).json({ message: "Call log not found" });
+
+    if (log.conversationId && !log.conversationId.startsWith("demo_")) {
+      const status = await getCallStatus(log.conversationId);
+      return res.json({ ...log, liveStatus: status });
+    }
+    res.json(log);
   });
 
   app.get("/api/predictions/:cityId", async (req, res) => {
@@ -286,6 +396,11 @@ export async function registerRoutes(
     } catch (err: any) {
       res.status(500).json({ message: "Balance check failed", error: err.message });
     }
+  });
+
+  app.get("/api/mongodb/stats", async (_req, res) => {
+    const stats = await getMongoStats();
+    res.json(stats);
   });
 
   return httpServer;

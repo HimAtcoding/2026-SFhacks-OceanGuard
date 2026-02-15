@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { droneScans, alerts } from "@shared/schema";
 import { log } from "./index";
+import { syncToMongo } from "./mongodb";
 
 const SF_BAY_LOCATIONS = [
   { name: "Golden Gate Strait", location: "Golden Gate, SF", lat: 37.8199, lng: -122.4783 },
@@ -98,19 +99,21 @@ export async function generateRealtimeScan() {
   };
 
   const [scan] = await db.insert(droneScans).values(scanData).returning();
+  syncToMongo("drone_scans", scan).catch(() => {});
 
   const triggeredAlerts = ALERT_TYPES.filter(a => a.condition(scanData));
   const alertsToCreate = triggeredAlerts.slice(0, 2);
 
   for (const alertType of alertsToCreate) {
     const msgs = ALERT_MESSAGES[alertType.type] || ["Alert triggered for this scan."];
-    await db.insert(alerts).values({
+    const [alert] = await db.insert(alerts).values({
       scanId: scan.id,
       type: alertType.type,
       severity: alertType.severity,
       message: pickRandom(msgs),
       resolved: alertType.severity === "info",
-    });
+    }).returning();
+    syncToMongo("alerts", alert).catch(() => {});
   }
 
   return scan;

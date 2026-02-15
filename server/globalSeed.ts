@@ -109,6 +109,8 @@ export async function seedGlobalData() {
     const status = CLEANUP_STATUSES[Math.floor(Math.random() * CLEANUP_STATUSES.length)];
     const priority = PRIORITIES[Math.floor(Math.random() * PRIORITIES.length)];
 
+    const fundingGoal = rand(500, 5000);
+    const fundingRaised = status === "completed" ? fundingGoal : rand(0, fundingGoal * 0.8);
     await db.insert(cleanupOperations).values({
       cityId,
       operationName: CLEANUP_NAMES[i % CLEANUP_NAMES.length],
@@ -118,6 +120,8 @@ export async function seedGlobalData() {
       areaCleanedKm2: status === "completed" ? rand(2, 25) : rand(0, 10),
       dronesDeployed: Math.floor(rand(2, 12)),
       notes: `Automated cleanup operation targeting marine debris and kelp monitoring.`,
+      fundingGoal,
+      fundingRaised,
     });
   }
 

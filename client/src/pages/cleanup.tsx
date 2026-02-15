@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { CleanupOperation, CityMonitor, Donation } from "@shared/schema";
+import type { CleanupOperation, CityMonitor, Donation, CallLog } from "@shared/schema";
 import {
   BarChart,
   Bar,
@@ -49,6 +50,9 @@ import {
   Activity,
   Megaphone,
   Package,
+  Phone,
+  PhoneCall,
+  DollarSign,
 } from "lucide-react";
 import { SiSolana } from "react-icons/si";
 
@@ -87,6 +91,96 @@ function PriorityBadge({ priority }: { priority: string }) {
     <span className={`text-xs font-medium ${colors[priority] || "text-muted-foreground"}`}>
       {priority.charAt(0).toUpperCase() + priority.slice(1)}
     </span>
+  );
+}
+
+function FundingBar({ goal, raised }: { goal: number; raised: number }) {
+  const pct = goal > 0 ? Math.min(100, (raised / goal) * 100) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-2 text-[10px]">
+        <span className="text-muted-foreground">
+          <DollarSign className="h-3 w-3 inline" />${raised.toFixed(0)} raised
+        </span>
+        <span className="text-muted-foreground">Goal: ${goal.toFixed(0)}</span>
+      </div>
+      <Progress value={pct} className="h-2" />
+      <p className="text-[10px] text-muted-foreground text-right">{pct.toFixed(0)}% funded</p>
+    </div>
+  );
+}
+
+function CallButton({ cleanupId, operationName }: { cleanupId: string; operationName: string }) {
+  const [calling, setCalling] = useState(false);
+  const [callResult, setCallResult] = useState<string | null>(null);
+
+  const { data: callLogs } = useQuery<CallLog[]>({
+    queryKey: ["/api/call-logs", cleanupId],
+    queryFn: async () => {
+      const res = await fetch(`/api/call-logs?cleanupId=${cleanupId}`);
+      return res.json();
+    },
+  });
+
+  const callMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/cleanup/${cleanupId}/call`, {
+        phoneNumber: "19255491150",
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setCallResult(data.message);
+      queryClient.invalidateQueries({ queryKey: ["/api/call-logs", cleanupId] });
+    },
+    onError: (err: any) => {
+      setCallResult("Call failed: " + err.message);
+    },
+  });
+
+  const handleCall = async () => {
+    setCalling(true);
+    setCallResult(null);
+    await callMutation.mutateAsync();
+    setCalling(false);
+  };
+
+  const recentLogs = (callLogs || []).slice(0, 3);
+
+  return (
+    <div className="space-y-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleCall}
+        disabled={calling || callMutation.isPending}
+        className="gap-1.5 w-full"
+        data-testid={`button-call-${cleanupId}`}
+      >
+        {calling || callMutation.isPending ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <PhoneCall className="h-3 w-3" />
+        )}
+        {calling ? "Calling..." : "Verify Availability"}
+      </Button>
+      {callResult && (
+        <p className={`text-[10px] ${callResult.includes("failed") ? "text-destructive" : "text-chart-2"}`}>
+          {callResult}
+        </p>
+      )}
+      {recentLogs.length > 0 && (
+        <div className="space-y-1">
+          {recentLogs.map(log => (
+            <div key={log.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <Phone className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{log.status === "demo_completed" ? "Verified (demo)" : log.status}</span>
+              <span className="ml-auto shrink-0">{new Date(log.createdAt).toLocaleTimeString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -213,7 +307,7 @@ function WeatherSection({ cityId }: { cityId: string }) {
 
 const RECEIVER_WALLET = "GDwaNk7VnHi3HopFGEBsGPbqMcZzFC81eT91GtLSisan";
 
-function SolanaDonationSection() {
+function SolanaDonationSection({ cleanupId }: { cleanupId?: string }) {
   const [donationAmount, setDonationAmount] = useState("");
   const [donorName, setDonorName] = useState("");
   const [purpose, setPurpose] = useState("Trash Bags & Supplies");
@@ -236,6 +330,7 @@ function SolanaDonationSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/donations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cleanup"] });
     },
   });
 
@@ -325,6 +420,7 @@ function SolanaDonationSection() {
           walletAddress: walletAddress,
           txSignature: data.signature,
           status: "completed",
+          cleanupId: cleanupId || null,
         });
         refreshBalance();
         setDonationAmount("");
@@ -582,6 +678,7 @@ function ExternalDataSection() {
 
 export default function Cleanup() {
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
+  const [selectedCleanupForDonation, setSelectedCleanupForDonation] = useState<string | undefined>(undefined);
 
   const { data: ops, isLoading: opsLoading } = useQuery<CleanupOperation[]>({
     queryKey: ["/api/cleanup"],
@@ -611,6 +708,8 @@ export default function Cleanup() {
   const totalTrashCollected = operations.reduce((s, o) => s + (o.trashCollected || 0), 0);
   const totalAreaCleaned = operations.reduce((s, o) => s + (o.areaCleanedKm2 || 0), 0);
   const totalDrones = operations.reduce((s, o) => s + (o.dronesDeployed || 0), 0);
+  const totalFundingGoal = operations.reduce((s, o) => s + (o.fundingGoal || 0), 0);
+  const totalFundingRaised = operations.reduce((s, o) => s + (o.fundingRaised || 0), 0);
 
   const statusData = [
     { name: "Completed", value: completedOps.length, color: "#22c55e" },
@@ -653,12 +752,12 @@ export default function Cleanup() {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            Manage marine debris cleanup operations with real-time tracking
+            Manage marine debris cleanup operations with real-time tracking, AI verification calls, and crowdfunded goals
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
           <div className="flex items-center gap-3">
             <div className="rounded-md bg-chart-2/10 p-2.5 shrink-0"><Trash2 className="h-5 w-5 text-chart-2" /></div>
@@ -693,6 +792,17 @@ export default function Cleanup() {
               <p className="text-xs text-muted-foreground">Completion Rate</p>
               <p className="text-lg font-bold text-foreground" data-testid="text-completion-rate">
                 {operations.length > 0 ? ((completedOps.length / operations.length) * 100).toFixed(0) : 0}%
+              </p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-md bg-chart-3/10 p-2.5 shrink-0"><DollarSign className="h-5 w-5 text-chart-3" /></div>
+            <div>
+              <p className="text-xs text-muted-foreground">Funding Progress</p>
+              <p className="text-lg font-bold text-foreground" data-testid="text-funding-progress">
+                {totalFundingGoal > 0 ? ((totalFundingRaised / totalFundingGoal) * 100).toFixed(0) : 0}%
               </p>
             </div>
           </div>
@@ -797,6 +907,65 @@ export default function Cleanup() {
         </div>
       </Card>
 
+      <Card className="p-6" data-testid="section-all-operations">
+        <h3 className="font-semibold text-foreground mb-4 text-sm">All Operations — Funding Goals & Verification</h3>
+        <div className="space-y-4">
+          {operations.length === 0 ? (
+            <div className="p-8 text-center">
+              <Trash2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No cleanup operations scheduled yet.</p>
+            </div>
+          ) : (
+            operations.map((op) => {
+              const city = op.cityId ? cityMap.get(op.cityId) : null;
+              return (
+                <div key={op.id} className="p-4 bg-muted/50 rounded-md space-y-3" data-testid={`row-operation-${op.id}`}>
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-medium text-foreground text-sm">{op.operationName}</span>
+                        <StatusBadge status={op.status} />
+                        <PriorityBadge priority={op.priority} />
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                        {city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{city.cityName}</span>}
+                        <span className="flex items-center gap-1"><Trash2 className="h-3 w-3" />{(op.trashCollected || 0).toFixed(0)} kg</span>
+                        <span className="flex items-center gap-1"><Waves className="h-3 w-3" />{(op.areaCleanedKm2 || 0).toFixed(1)} km2</span>
+                        <span className="flex items-center gap-1"><Navigation className="h-3 w-3" />{op.dronesDeployed || 0} drones</span>
+                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(op.startDate).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div className="md:col-span-2">
+                      <FundingBar goal={op.fundingGoal || 0} raised={op.fundingRaised || 0} />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 gap-1.5"
+                        onClick={() => setSelectedCleanupForDonation(selectedCleanupForDonation === op.id ? undefined : op.id)}
+                        data-testid={`button-fund-${op.id}`}
+                      >
+                        <Heart className="h-3 w-3" />
+                        Fund This Cleanup
+                      </Button>
+                    </div>
+                    <div>
+                      <CallButton cleanupId={op.id} operationName={op.operationName} />
+                    </div>
+                  </div>
+                  {selectedCleanupForDonation === op.id && (
+                    <div className="pt-3 border-t border-border">
+                      <SolanaDonationSection cleanupId={op.id} />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </Card>
+
       <SolanaDonationSection />
 
       <div className="grid md:grid-cols-3 gap-6">
@@ -837,40 +1006,6 @@ export default function Cleanup() {
 
       <Card className="p-6"><FlowDiagram /></Card>
       <Card className="p-6"><DataFlowDiagram /></Card>
-
-      <Card className="p-6">
-        <h3 className="font-semibold text-foreground mb-4 text-sm">All Operations</h3>
-        <div className="space-y-3">
-          {operations.length === 0 ? (
-            <div className="p-8 text-center">
-              <Trash2 className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No cleanup operations scheduled yet.</p>
-            </div>
-          ) : (
-            operations.map((op) => {
-              const city = op.cityId ? cityMap.get(op.cityId) : null;
-              return (
-                <div key={op.id} className="flex items-center gap-3 p-3 bg-muted/50 rounded-md" data-testid={`row-operation-${op.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-medium text-foreground text-sm">{op.operationName}</span>
-                      <StatusBadge status={op.status} />
-                      <PriorityBadge priority={op.priority} />
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                      {city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{city.cityName}</span>}
-                      <span className="flex items-center gap-1"><Trash2 className="h-3 w-3" />{(op.trashCollected || 0).toFixed(0)} kg</span>
-                      <span className="flex items-center gap-1"><Waves className="h-3 w-3" />{(op.areaCleanedKm2 || 0).toFixed(1)} km2</span>
-                      <span className="flex items-center gap-1"><Navigation className="h-3 w-3" />{op.dronesDeployed || 0} drones</span>
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(op.startDate).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </Card>
     </div>
   );
 }
