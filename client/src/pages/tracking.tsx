@@ -193,8 +193,42 @@ function generateOceanCurrents(city: CityMonitor) {
   return paths;
 }
 
+function separatePositions(
+  items: { lat: number; lng: number; radius: number }[],
+  cosLat: number,
+  minSep: number,
+  iterations = 3
+) {
+  const pos = items.map(p => ({ lat: p.lat, lng: p.lng, r: p.radius }));
+  for (let iter = 0; iter < iterations; iter++) {
+    for (let i = 0; i < pos.length; i++) {
+      for (let j = i + 1; j < pos.length; j++) {
+        const dlat = pos[j].lat - pos[i].lat;
+        const dlng = (pos[j].lng - pos[i].lng) * cosLat;
+        const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+        const needed = Math.max(minSep, pos[i].r + pos[j].r);
+        if (dist < needed && dist > 0.0001) {
+          const push = (needed - dist) * 0.55;
+          const nx = dlat / dist;
+          const ny = dlng / dist;
+          pos[i].lat -= nx * push;
+          pos[i].lng -= (ny * push) / cosLat;
+          pos[j].lat += nx * push;
+          pos[j].lng += (ny * push) / cosLat;
+        } else if (dist <= 0.0001) {
+          const angle = (i * 2.399) + iter;
+          pos[j].lat += Math.sin(angle) * needed;
+          pos[j].lng += (Math.cos(angle) * needed) / cosLat;
+        }
+      }
+    }
+  }
+  return pos;
+}
+
 function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
   const cityKelp = tracks.filter(t => t.cityId === city.id && t.trackType === "kelp");
+  const cityTrash = tracks.filter(t => t.cityId === city.id && t.trackType === "trash");
   const rings: any[] = [];
   const rng = seededRandom(Math.abs(Math.round(city.latitude * 1000 + city.longitude * 1000)) + 42);
   const cosLat = Math.cos(city.latitude * Math.PI / 180) || 0.5;
@@ -208,6 +242,7 @@ function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
       speed: 0.3 + rng() * 0.4,
       period: 2500 + rng() * 2000,
       color: (t: number) => `rgba(34, 197, 94, ${Math.max(0, 0.45 * (1 - t))})`,
+      type: "kelp",
       info: {
         title: "Kelp Forest Zone",
         description: `Kelp forests near ${city.cityName} function as vital underwater carbon sinks, absorbing atmospheric CO2 while sheltering hundreds of marine species. A healthy kelp forest sequesters up to 20 times more carbon per hectare than terrestrial forests and generates significant dissolved oxygen.`,
@@ -233,6 +268,7 @@ function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
         speed: 0.25 + rng() * 0.35,
         period: 3000 + rng() * 2000,
         color: (t: number) => `rgba(34, 197, 94, ${Math.max(0, 0.3 * (1 - t))})`,
+        type: "kelp",
         info: {
           title: "Potential Kelp Habitat",
           description: `This area near ${city.cityName} has favorable conditions for marine vegetation: suitable water temperature, nutrient levels, and light penetration. Monitoring indicates ${city.kelpHealthRating.toLowerCase()} overall kelp ecosystem health across this region.`,
@@ -246,7 +282,39 @@ function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
       });
     }
   }
-  return rings;
+
+  const trashRings = cityTrash.slice(0, 6).map((track) => {
+    const density = track.density || 0.5;
+    return {
+      lat: track.latitude,
+      lng: track.longitude,
+      maxR: 0.02 + density * 0.04,
+      speed: 0.2 + rng() * 0.3,
+      period: 3000 + rng() * 1500,
+      color: (t: number) => `rgba(239, 68, 68, ${Math.max(0, 0.4 * (1 - t))})`,
+      type: "trash",
+      info: {
+        title: "Trash Concentration",
+        description: `Marine debris detected near ${city.cityName}. Trash accumulation threatens local ecosystems, entangling wildlife and releasing microplastics into the food chain. Current density: ${(density).toFixed(1)} units/km².`,
+        stats: [
+          { label: "Density", value: `${(density).toFixed(1)}/km²` },
+          { label: "Direction", value: `${track.movementDirection?.toFixed(0) || 0}°` },
+          { label: "Drift Speed", value: `${(track.speed || 0).toFixed(1)} km/h` },
+          { label: "Risk", value: density > 50 ? "High" : density > 20 ? "Moderate" : "Low" },
+        ],
+      },
+    };
+  });
+
+  const allRings = [...rings, ...trashRings];
+  const items = allRings.map(r => ({ lat: r.lat, lng: r.lng, radius: r.maxR }));
+  const separated = separatePositions(items, cosLat, 0.1, 4);
+  separated.forEach((pos, i) => {
+    allRings[i].lat = pos.lat;
+    allRings[i].lng = pos.lng;
+  });
+
+  return allRings;
 }
 
 function generateEcoMarkers(city: CityMonitor) {
