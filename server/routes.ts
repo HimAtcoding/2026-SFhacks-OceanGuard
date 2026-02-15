@@ -147,7 +147,6 @@ export async function registerRoutes(
 
   app.post("/api/cleanup/:id/call", async (req, res) => {
     try {
-      const op = await storage.updateCleanupOp(req.params.id, {});
       const cleanup = (await storage.getCleanupOps()).find(o => o.id === req.params.id);
       if (!cleanup) return res.status(404).json({ message: "Cleanup not found" });
 
