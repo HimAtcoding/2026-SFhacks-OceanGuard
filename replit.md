@@ -4,6 +4,8 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Rewrote robocaller as initial outreach call (not verification): greeting explains who OceanGuard is, what cleanup is proposed, and when; AI asks follow-up questions about access, permits, timing, conditions, safety before concluding
+- 2026-02-15: Added topic tracking (access/permits/timing/conditions/safety) with minimum 3 turns and 2 topics required before AI can conclude a call outcome
 - 2026-02-15: Replaced conversation outcome analysis with AI-powered sentiment analysis (OpenAI) - fixes bug where positive responses like "pretty good" were misclassified as negative
 - 2026-02-15: Upgraded conversation response generation from Snowflake Cortex to OpenAI (BroxiAI) as primary with Snowflake as fallback
 - 2026-02-15: Added AI-generated job listings (POST /api/cleanup-jobs/generate/:cleanupId) using OpenAI to create contextual positions per cleanup operation, cached in DB

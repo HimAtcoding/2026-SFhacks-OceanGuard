@@ -14,7 +14,10 @@ export async function initiateOutboundCall(
   cleanupId: string,
   operationName: string,
   callLogId: string,
-  cityName: string = ""
+  cityName: string = "",
+  priority: string = "medium",
+  notes: string = "",
+  startDate: string = ""
 ): Promise<{ conversationId: string; status: string }> {
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
@@ -28,6 +31,9 @@ export async function initiateOutboundCall(
       operationName,
       cityName,
       callSid: `demo_${Date.now()}`,
+      priority,
+      notes,
+      startDate,
     });
     return {
       conversationId: `demo_${Date.now()}`,
@@ -45,6 +51,9 @@ export async function initiateOutboundCall(
     operationName,
     cityName,
     callSid: "",
+    priority,
+    notes,
+    startDate,
   });
 
   try {

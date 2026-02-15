@@ -15,11 +15,15 @@ interface ConversationState {
   cleanupId: string;
   operationName: string;
   cityName: string;
+  priority: string;
+  notes: string;
+  startDate: string;
   messages: Array<{ role: "assistant" | "user"; content: string }>;
   transcript: Array<{ role: "agent" | "user"; text: string; timestamp: number }>;
   outcome: string | null;
   callSid: string;
   turnCount: number;
+  topicsCovered: Set<string>;
 }
 
 const conversations = new Map<string, ConversationState>();
@@ -69,58 +73,86 @@ export function cleanupConversation(callLogId: string) {
   }
 }
 
-function buildConversationSystemPrompt(operationName: string, cityName: string): string {
-  return `You are a phone agent for OceanGuard, an AI-powered ocean health monitoring platform. You are on a live phone call verifying conditions at a marine cleanup site.
+function buildConversationSystemPrompt(operationName: string, cityName: string, priority: string, notes: string, startDate: string): string {
+  return `You are a phone agent for OceanGuard, an AI-powered ocean health monitoring platform. You are making an INITIAL OUTREACH call to propose a marine debris cleanup operation at a coastal site. This is NOT a follow-up to an existing conversation - you are reaching out for the FIRST TIME to ask if this cleanup can happen.
 
 CONTEXT:
-- Operation: ${operationName}
+- Proposed Operation: "${operationName}"
 - Location: ${cityName || "a monitored coastal area"}
-- Purpose: Verify site readiness for a scheduled marine debris cleanup
+- Priority Level: ${priority}
+- Target Date: ${startDate}
+- Details: ${notes || "Marine debris cleanup using drone-guided teams"}
+
+YOUR GOAL:
+You need to find out whether this cleanup operation can proceed at this location. You are essentially REQUESTING PERMISSION and gathering information. You need to learn:
+1. Is the site accessible for a cleanup crew?
+2. Are there any permits, restrictions, or scheduling conflicts?
+3. What is the condition of the area - how bad is the debris situation?
+4. Is there a good time window for the operation?
+5. Are there any safety concerns or hazards the team should know about?
 
 YOUR BEHAVIOR:
 - Be professional, warm, and conversational like a real person on the phone
 - Keep responses concise (1-3 sentences max) since this is a phone call
-- Ask follow-up questions naturally based on what the person says
-- LISTEN CAREFULLY to what the person actually says - if they say conditions are good, acknowledge that positively
-- If they mention the site is in good condition or ready, confirm that and ask if there are any concerns before wrapping up
-- If they mention problems, ask what kind and whether it affects the cleanup timeline
-- If they seem hesitant, reassure them about the cleanup process
-- Work toward getting a clear picture of site conditions - don't assume negative when information is positive
-- If they ask about OceanGuard, briefly explain it monitors ocean health using drones and AI
-- Never jump to negative conclusions - if someone says things are "good" or "pretty good", that is a POSITIVE signal
+- You are ASKING QUESTIONS to gather information - do NOT jump to conclusions after one answer
+- Ask ONE follow-up question at a time based on what the person tells you
+- If they give a short or vague answer, ask for more specifics
+- If they say the area is accessible, follow up by asking about permits or timing
+- If they mention debris or pollution, ask about the scale and what types of waste
+- If they seem unsure, explain that OceanGuard uses AI drones to monitor ocean health and coordinates volunteer cleanup crews
+- Do NOT conclude the call quickly - you need to gather enough information to plan the operation
+- Even if someone sounds positive about one aspect, keep asking about OTHER aspects (access, timing, safety, permits)
+- Only wrap up after you've covered at least access, timing, and conditions
 
 IMPORTANT: Generate ONLY your spoken response. No prefixes, labels, or formatting. Just natural speech.`;
+}
+
+function trackTopicsCovered(state: ConversationState, userText: string) {
+  const lower = userText.toLowerCase();
+  if (/access|enter|get to|open|closed|gate|road|path|reach/.test(lower)) state.topicsCovered.add("access");
+  if (/permit|license|approval|permission|city|council|authority|regulation/.test(lower)) state.topicsCovered.add("permits");
+  if (/time|date|schedule|when|morning|afternoon|weekend|weekday|month|week/.test(lower)) state.topicsCovered.add("timing");
+  if (/trash|debris|waste|plastic|garbage|pollution|dirty|mess|litter|junk/.test(lower)) state.topicsCovered.add("conditions");
+  if (/safe|danger|hazard|risk|tide|current|wave|weather|storm/.test(lower)) state.topicsCovered.add("safety");
 }
 
 async function analyzeOutcomeWithAI(state: ConversationState, userText: string): Promise<void> {
   if (state.outcome) return;
 
+  trackTopicsCovered(state, userText);
+
+  const minTurnsForConclusion = 3;
+  const minTopicsForAcceptance = 2;
+
+  if (state.turnCount < minTurnsForConclusion) return;
+
+  if (state.topicsCovered.size < minTopicsForAcceptance) return;
+
   const conversationHistory = state.transcript
     .map((t) => `${t.role === "agent" ? "OceanGuard Agent" : "Site Contact"}: ${t.text}`)
     .join("\n");
 
-  const analysisPrompt = `You are analyzing a phone conversation between an OceanGuard verification agent and a site contact for the "${state.operationName}" cleanup operation${state.cityName ? ` in ${state.cityName}` : ""}.
+  const analysisPrompt = `You are analyzing a phone conversation where an OceanGuard agent is making an INITIAL OUTREACH call to propose the "${state.operationName}" cleanup operation${state.cityName ? ` in ${state.cityName}` : ""}.
 
-The agent is trying to verify whether the cleanup site is available and conditions are suitable for a marine debris cleanup.
+The agent is asking whether this cleanup CAN HAPPEN at this location. This is a first-time inquiry, not a follow-up.
 
-FULL CONVERSATION SO FAR:
+FULL CONVERSATION (${state.turnCount} exchanges so far):
 ${conversationHistory}
 
 LATEST MESSAGE FROM SITE CONTACT: "${userText}"
 
-Based on the FULL conversation context and especially the latest message, determine the site contact's overall sentiment about site availability:
+Topics covered so far: ${Array.from(state.topicsCovered).join(", ") || "none"}
 
-RULES FOR ANALYSIS:
-- If the person says conditions are "good", "pretty good", "fine", "okay", "not bad", "looking good" etc - that is POSITIVE even if they mention minor issues
-- "A little bit messy" alongside "pretty good" means the site IS available but has minor debris - this is POSITIVE (cleanup sites are expected to have some mess)
-- Only classify as NEGATIVE if the person clearly says the site is closed, unavailable, dangerous, or explicitly refuses
-- If the person hasn't given enough information yet, classify as CONTINUE
-- Do NOT confuse "the site has some trash/mess" with "the site is unavailable" - trash at a cleanup site is EXPECTED and is the reason for the cleanup
+Based on the FULL conversation, determine whether the agent has gathered enough information to reach a conclusion:
 
-Respond with EXACTLY one word:
-- ACCEPTED (site is available / conditions are suitable / person is positive about availability)
-- DECLINED (site is clearly unavailable / person explicitly refuses / dangerous conditions)
-- CONTINUE (not enough information yet / ambiguous / need to ask more questions)`;
+RULES:
+- ACCEPTED means: The contact has confirmed that the cleanup CAN proceed - site is accessible, there are no blocking restrictions, and they've given enough info about timing/conditions. Multiple aspects must be confirmed, not just one.
+- DECLINED means: The contact has clearly said the cleanup CANNOT happen - site is closed, access denied, impossible conditions, or they explicitly refuse to allow it.
+- CONTINUE means: The agent still needs to ask more questions. If only one topic has been addressed, there's more to learn. If the person gave a vague answer, the agent should probe deeper.
+
+IMPORTANT: Do NOT rush to ACCEPTED just because someone sounds friendly or says "sure" to one question. The agent needs a comprehensive picture covering access, timing, and conditions at minimum.
+
+Respond with EXACTLY one word: ACCEPTED, DECLINED, or CONTINUE`;
 
   try {
     const response = await openai.chat.completions.create({
@@ -178,15 +210,31 @@ export async function initConversation(params: {
   operationName: string;
   cityName: string;
   callSid: string;
+  priority?: string;
+  notes?: string;
+  startDate?: string;
 }): Promise<string> {
-  const greeting = `Hello! This is OceanGuard's verification system calling about the ${params.operationName} cleanup operation${params.cityName ? ` in ${params.cityName}` : ""}. We'd like to verify the current conditions at the site. Could you tell me about the situation there?`;
+  const formattedDate = params.startDate
+    ? new Date(params.startDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    : "the coming weeks";
+
+  const locationPhrase = params.cityName ? ` near ${params.cityName}` : "";
+  const greeting = `Hello! My name is Alex, and I'm calling from OceanGuard, an ocean health monitoring organization. We've been using our AI drone fleet to survey coastal areas${locationPhrase}, and our data shows there's a significant amount of marine debris that needs attention. We're looking into organizing a cleanup operation called ${params.operationName}, tentatively planned for around ${formattedDate}. I wanted to reach out to ask whether something like that would be feasible at your location. Would you be able to help me with a few questions about the site?`;
 
   const state: ConversationState = {
-    ...params,
+    callLogId: params.callLogId,
+    cleanupId: params.cleanupId,
+    operationName: params.operationName,
+    cityName: params.cityName,
+    priority: params.priority || "medium",
+    notes: params.notes || "",
+    startDate: params.startDate || formattedDate,
+    callSid: params.callSid,
     messages: [{ role: "assistant", content: greeting }],
     transcript: [{ role: "agent", text: greeting, timestamp: Date.now() }],
     outcome: null,
     turnCount: 0,
+    topicsCovered: new Set(),
   };
 
   conversations.set(params.callLogId, state);
@@ -249,14 +297,15 @@ export async function processUserSpeech(
   let isFinished = false;
 
   if (state.outcome === "accepted") {
-    responseText = `That's great to hear! I've confirmed that the ${state.operationName} site${state.cityName ? ` in ${state.cityName}` : ""} is available for the cleanup operation. Our team will proceed with scheduling. Thank you so much for your help with ocean conservation!`;
+    const topicsStr = Array.from(state.topicsCovered).join(", ");
+    responseText = `This is really helpful, thank you so much for all that information. Based on everything you've shared about the ${topicsStr}, it sounds like the ${state.operationName} operation${state.cityName ? ` in ${state.cityName}` : ""} can move forward. Our operations team will be in touch with the specific logistics and timeline. We really appreciate your willingness to support ocean conservation. Have a wonderful day!`;
     isFinished = true;
   } else if (state.outcome === "declined") {
-    responseText = `I understand, thank you for letting us know. I'll update our records that the site is currently unavailable. If conditions change, our team may reach out again. Thank you for your time!`;
+    responseText = `I completely understand, and I appreciate you taking the time to explain that. I'll make a note that this location isn't suitable for the operation right now. If circumstances change in the future, would it be alright if we reached out again? Either way, thank you for your time today.`;
     isFinished = true;
   } else if (state.turnCount >= 6) {
-    responseText = `Thank you for all this information. I'll pass everything along to our operations team and they may follow up if needed. Have a great day!`;
-    state.outcome = "inconclusive";
+    responseText = `Thank you so much for all this information, it's been really valuable. I have a good picture of the site now. I'll compile everything and pass it along to our operations team, and someone will follow up with you about the next steps for ${state.operationName}. Thanks again for your time, and have a great day!`;
+    state.outcome = state.topicsCovered.size >= 2 ? "accepted" : "inconclusive";
     isFinished = true;
   } else {
     state.messages.push({ role: "user", content: speechText });
@@ -265,11 +314,21 @@ export async function processUserSpeech(
       .map((m) => `${m.role === "assistant" ? "Agent" : "Person"}: ${m.content}`)
       .join("\n");
 
+    const systemPrompt = buildConversationSystemPrompt(
+      state.operationName, state.cityName, state.priority, state.notes, state.startDate
+    );
+
+    const topicsNeeded = ["access", "timing", "conditions", "safety", "permits"];
+    const uncovered = topicsNeeded.filter(t => !state.topicsCovered.has(t));
+    const topicHint = uncovered.length > 0
+      ? `\n\nTOPICS STILL TO ASK ABOUT: ${uncovered.join(", ")}. Naturally work one of these into your next question.`
+      : "";
+
     try {
       const aiResponse = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: buildConversationSystemPrompt(state.operationName, state.cityName) },
+          { role: "system", content: systemPrompt + topicHint },
           ...state.messages.map((m) => ({
             role: m.role as "assistant" | "user",
             content: m.content,
@@ -280,15 +339,15 @@ export async function processUserSpeech(
       });
 
       responseText = aiResponse.choices[0]?.message?.content?.trim() || "";
-      responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
+      responseText = responseText.replace(/^(Agent|Assistant|Response|AI|Alex):\s*/i, "").trim();
 
       if (!responseText) {
-        responseText = "I appreciate you sharing that. Could you tell me a bit more about the current conditions at the site?";
+        responseText = "That's good to know. And in terms of the timing, would your site be accessible for a cleanup crew in the coming weeks?";
       }
     } catch (err: any) {
       console.error("OpenAI conversation response failed, trying Snowflake:", err.message);
 
-      const prompt = `${buildConversationSystemPrompt(state.operationName, state.cityName)}
+      const prompt = `${systemPrompt}${topicHint}
 
 Conversation so far:
 ${conversationHistory}
@@ -297,10 +356,10 @@ Generate your next spoken response:`;
 
       try {
         responseText = await snowflakeCortexComplete(prompt, "mistral-large2");
-        responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
+        responseText = responseText.replace(/^(Agent|Assistant|Response|AI|Alex):\s*/i, "").trim();
       } catch (cortexErr: any) {
         console.error("Snowflake Cortex also failed:", cortexErr.message);
-        responseText = "I appreciate you sharing that. Could you clarify whether the site would be available for the cleanup operation?";
+        responseText = "Thank you for sharing that. Could you also tell me about the best timing for a cleanup crew to work at the site?";
       }
     }
 
@@ -370,12 +429,13 @@ async function finalizeConversation(callLogId: string) {
     .join("\n");
 
   const outcome = state.outcome || "inconclusive";
+  const topicsList = Array.from(state.topicsCovered).join(", ") || "general inquiry";
   const resultSummary =
     outcome === "accepted"
-      ? "Site availability confirmed - cleanup can proceed as planned."
+      ? `Cleanup operation approved - site contact confirmed feasibility. Topics discussed: ${topicsList}. Ready for operations team to proceed with planning.`
       : outcome === "declined"
-      ? "Site not available or conditions unfavorable for cleanup operation."
-      : "Call completed but availability status unclear - manual follow-up recommended.";
+      ? `Cleanup operation not feasible at this time - site contact indicated the location is unavailable or conditions prevent the operation. Topics discussed: ${topicsList}.`
+      : `Initial outreach completed but outcome inconclusive. Topics discussed: ${topicsList}. Manual follow-up recommended to gather remaining information.`;
 
   try {
     await storage.updateCallLog(state.callLogId, {

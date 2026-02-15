@@ -180,7 +180,10 @@ export async function registerRoutes(
           cleanup.id,
           cleanup.operationName,
           callLog.id,
-          cityName
+          cityName,
+          cleanup.priority,
+          cleanup.notes || "",
+          cleanup.startDate ? cleanup.startDate.toISOString() : ""
         );
 
         await storage.updateCallLog(callLog.id, {
