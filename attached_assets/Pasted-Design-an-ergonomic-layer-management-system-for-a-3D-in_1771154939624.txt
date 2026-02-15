@@ -1,0 +1,12 @@
+Design an ergonomic layer management system for a 3D interactive globe focused on ocean ecosystems and climate visualization. The layer interface should be built for clarity, minimal visual clutter, and extreme ease of use.
+Represent each globe layer (ocean currents, kelp coverage, topography, ecosystem markers, etc.) using thin, lightweight visual indicators so that active layers never visually overlap or obscure one another. Each layer should use subtle line weights, transparency, and clean color separation to maintain readability when multiple layers are enabled simultaneously.
+The layer control panel should appear as a compact, minimizable side window docked to the edge of the screen. It must never block the main globe view. The panel should smoothly slide in and out with animation and remember its minimized or expanded state. Its footprint should be small and unobtrusive, matching the overall minimalistic aesthetic.
+Inside the panel, organize layers in a clean vertical stack. Each layer entry should include:
+• a simple toggle switch for visibility
+• a thin visual preview indicator showing that layer’s style
+• a small dropdown arrow that expands into a concise information section
+When expanded, the dropdown should reveal short, readable descriptions explaining the purpose, data source, and ecological relevance of the layer. Dropdowns should animate smoothly and collapse automatically when another layer is expanded to prevent clutter.
+Interactions should feel ergonomic and intuitive: large enough click targets for accessibility, smooth hover feedback, and responsive animations. The interface should prioritize fast comprehension, minimal cognitive load, and seamless integration with the globe experience.
+The overall system should embody an extremely minimalistic design language with clean typography, subtle motion, and strong visual hierarchy. Every UI element should support effortless exploration of layered globe data while keeping the immersive 3D visualization as the primary focus.
+
+

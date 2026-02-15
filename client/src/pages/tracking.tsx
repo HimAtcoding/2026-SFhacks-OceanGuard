@@ -24,6 +24,9 @@ import {
   Crosshair,
   X,
   Layers,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 function getRatingColor(rating: string): string {
@@ -89,11 +92,46 @@ interface InfoData {
   stats?: { label: string; value: string }[];
 }
 
-const LAYER_CONFIG: { key: keyof LayerState; label: string; icon: any }[] = [
-  { key: "currents", label: "Ocean Currents", icon: Waves },
-  { key: "kelp", label: "Kelp Coverage", icon: Leaf },
-  { key: "topography", label: "Topography", icon: Activity },
-  { key: "ecoMarkers", label: "Ecosystem Info", icon: MapPin },
+const LAYER_CONFIG: {
+  key: keyof LayerState;
+  label: string;
+  icon: any;
+  color: string;
+  description: string;
+  source: string;
+}[] = [
+  {
+    key: "currents",
+    label: "Ocean Currents",
+    icon: Waves,
+    color: "#06b6d4",
+    description: "Animated surface current flows modeled with hemisphere-based Coriolis patterns. Shows dominant gyre direction and approximate flow speed near the selected city.",
+    source: "Simulated from hemispheric oceanographic models",
+  },
+  {
+    key: "kelp",
+    label: "Kelp Coverage",
+    icon: Leaf,
+    color: "#22c55e",
+    description: "Pulsing rings indicate kelp forest density zones. Kelp forests are critical carbon sinks and biodiversity hotspots, absorbing CO2 and sheltering hundreds of marine species.",
+    source: "OceanGuard drone scan aggregation",
+  },
+  {
+    key: "topography",
+    label: "Topography",
+    icon: Activity,
+    color: "#8b9fad",
+    description: "Switches the globe surface to a grayscale heightmap with terrain tinting, revealing ocean floor elevation and continental shelf boundaries for geological context.",
+    source: "ETOPO1 global relief dataset",
+  },
+  {
+    key: "ecoMarkers",
+    label: "Ecosystem Markers",
+    icon: MapPin,
+    color: "#f59e0b",
+    description: "Clickable points of interest including Marine Protected Areas, coral reef systems, shipping corridors, and research stations. Click any marker on the globe for details.",
+    source: "IUCN & regional conservation databases",
+  },
 ];
 
 function seededRandom(seed: number) {
@@ -302,9 +340,15 @@ function GlobeComponent({
     ecoMarkers: true,
   });
   const [infoData, setInfoData] = useState<InfoData | null>(null);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [expandedLayer, setExpandedLayer] = useState<keyof LayerState | null>(null);
 
   const toggleLayer = useCallback((key: keyof LayerState) => {
     setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const toggleExpanded = useCallback((key: keyof LayerState) => {
+    setExpandedLayer(prev => prev === key ? null : key);
   }, []);
 
   useEffect(() => {
@@ -567,54 +611,142 @@ function GlobeComponent({
       </div>
 
       {selectedCity && (
-        <div className="absolute top-3 left-3 z-10 pointer-events-auto" data-testid="section-layer-controls">
-          <div className="bg-background/90 backdrop-blur-sm rounded-md p-2 space-y-0.5 min-w-[156px]">
-            <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-0.5 border-b border-border/50">
-              <Layers className="h-3 w-3 text-muted-foreground" />
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Layers</span>
+        <div
+          className="absolute top-0 left-0 bottom-0 z-10 pointer-events-none flex items-stretch"
+          data-testid="section-layer-controls"
+        >
+          <div
+            className="flex flex-col bg-background/90 backdrop-blur-md border-r border-border/30 overflow-hidden pointer-events-auto"
+            style={{
+              width: panelOpen ? 240 : 0,
+              opacity: panelOpen ? 1 : 0,
+              transition: "width 300ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease",
+            }}
+          >
+            <div className="flex items-center justify-between gap-2 px-3.5 py-3 border-b border-border/30 flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <Layers className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider whitespace-nowrap" data-testid="text-layers-header">Layers</span>
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setPanelOpen(false)}
+                data-testid="button-collapse-layers"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
             </div>
-            {LAYER_CONFIG.map(({ key, label, icon: Icon }) => {
-              const active = layers[key];
-              return (
-                <Button
-                  key={key}
-                  size="sm"
-                  variant={active ? "default" : "ghost"}
-                  className="gap-2 text-xs justify-start w-full"
-                  onClick={() => toggleLayer(key)}
-                  data-testid={`button-toggle-${key}`}
-                >
-                  <Icon className="h-3 w-3" />
-                  {label}
-                </Button>
-              );
-            })}
+
+            <div className="flex-1 overflow-y-auto py-1.5">
+              {LAYER_CONFIG.map(({ key, label, icon: Icon, color, description, source }) => {
+                const active = layers[key];
+                const expanded = expandedLayer === key;
+                return (
+                  <div key={key} className="border-b border-border/20 last:border-b-0">
+                    <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                      <div
+                        className="w-[3px] h-5 rounded-full flex-shrink-0 transition-opacity duration-200"
+                        style={{ backgroundColor: color, opacity: active ? 1 : 0.2 }}
+                        data-testid={`indicator-layer-${key}`}
+                      />
+                      <button
+                        onClick={() => toggleLayer(key)}
+                        className="relative w-7 h-4 rounded-full flex-shrink-0 transition-colors duration-200 focus:outline-none"
+                        style={{ backgroundColor: active ? color : "hsl(var(--muted))" }}
+                        data-testid={`button-toggle-${key}`}
+                        aria-label={`Toggle ${label}`}
+                      >
+                        <span
+                          className="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow-sm transition-transform duration-200"
+                          style={{ transform: active ? "translateX(14px)" : "translateX(2px)" }}
+                        />
+                      </button>
+                      <span
+                        className={`text-xs font-medium flex-1 min-w-0 truncate transition-colors duration-150 ${active ? "text-foreground" : "text-muted-foreground"}`}
+                        data-testid={`text-layer-${key}`}
+                      >
+                        {label}
+                      </span>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => toggleExpanded(key)}
+                        className="transition-transform duration-200"
+                        style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)" }}
+                        data-testid={`button-expand-${key}`}
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    <div
+                      className="overflow-hidden"
+                      style={{
+                        maxHeight: expanded ? 200 : 0,
+                        opacity: expanded ? 1 : 0,
+                        transition: "max-height 250ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease",
+                      }}
+                    >
+                      <div className="px-3.5 pb-3 pl-[2.75rem]">
+                        <p className="text-[11px] leading-relaxed text-muted-foreground" data-testid={`text-desc-${key}`}>{description}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1.5 italic" data-testid={`text-source-${key}`}>{source}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="border-t border-border/30 px-3.5 py-2 flex-shrink-0">
+              <p className="text-[10px] text-muted-foreground/50 text-center" data-testid="text-active-count">
+                {Object.values(layers).filter(Boolean).length}/{LAYER_CONFIG.length} active
+              </p>
+            </div>
           </div>
+
+          {!panelOpen && (
+            <div
+              className="flex items-center justify-center w-8 bg-background/80 backdrop-blur-sm border-r border-border/30 text-muted-foreground pointer-events-auto cursor-pointer hover-elevate"
+              onClick={() => setPanelOpen(true)}
+              data-testid="button-expand-layers"
+            >
+              <div className="flex flex-col items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5" />
+                <ChevronRight className="h-3 w-3" />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {infoData && (
-        <Card className="absolute bottom-14 right-3 z-20 w-72 bg-background/95 backdrop-blur-sm pointer-events-auto" data-testid="section-info-panel">
-          <div className="p-3 space-y-2">
-            <div className="flex items-start justify-between gap-2">
-              <h4 className="text-sm font-semibold text-foreground">{infoData.title}</h4>
-              <Button size="icon" variant="ghost" onClick={() => setInfoData(null)} data-testid="button-close-info">
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">{infoData.description}</p>
-            {infoData.stats && infoData.stats.length > 0 && (
-              <div className="grid grid-cols-2 gap-1.5 pt-1">
-                {infoData.stats.map((s, i) => (
-                  <div key={i} className="bg-muted rounded-md px-2 py-1.5 text-center">
-                    <p className="text-xs font-semibold text-foreground">{s.value}</p>
-                    <p className="text-[10px] text-muted-foreground">{s.label}</p>
-                  </div>
-                ))}
+        <div
+          className="absolute bottom-14 right-3 z-20 w-72 pointer-events-auto"
+          style={{ animation: "fadeSlideUp 200ms ease-out" }}
+        >
+          <Card className="bg-background/95 backdrop-blur-sm" data-testid="section-info-panel">
+            <div className="p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <h4 className="text-sm font-semibold text-foreground">{infoData.title}</h4>
+                <Button size="icon" variant="ghost" onClick={() => setInfoData(null)} data-testid="button-close-info">
+                  <X className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            )}
-          </div>
-        </Card>
+              <p className="text-xs text-muted-foreground leading-relaxed">{infoData.description}</p>
+              {infoData.stats && infoData.stats.length > 0 && (
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  {infoData.stats.map((s, i) => (
+                    <div key={i} className="bg-muted rounded-md px-2 py-1.5 text-center">
+                      <p className="text-xs font-semibold text-foreground">{s.value}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
       )}
 
       <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 z-10 flex-wrap">
