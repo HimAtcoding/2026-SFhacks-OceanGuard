@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema } from "@shared/schema";
+import { textToSpeechBuffer } from "./elevenlabs";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -197,6 +198,94 @@ export async function registerRoutes(
       };
     });
     res.json({ city: city.cityName, forecast });
+  });
+
+  app.post("/api/tts", async (req, res) => {
+    try {
+      const { text } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ message: "text is required" });
+      }
+      const truncated = text.slice(0, 1000);
+      const audioBuffer = await textToSpeechBuffer(truncated);
+      res.set({
+        "Content-Type": "audio/mpeg",
+        "Content-Length": audioBuffer.length.toString(),
+      });
+      res.send(audioBuffer);
+    } catch (err: any) {
+      console.error("TTS error:", err.message);
+      res.status(500).json({ message: "Voice generation failed", error: err.message });
+    }
+  });
+
+  app.post("/api/solana/transfer", async (req, res) => {
+    try {
+      const { fromSecretKey, toAddress, amountSol } = req.body;
+      if (!fromSecretKey || !toAddress || !amountSol) {
+        return res.status(400).json({ message: "fromSecretKey, toAddress, amountSol required" });
+      }
+
+      const { Connection, PublicKey, Keypair, SystemProgram, Transaction, LAMPORTS_PER_SOL, sendAndConfirmTransaction } = await import("@solana/web3.js");
+
+      const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+      const secretKeyArray = Uint8Array.from(JSON.parse(fromSecretKey));
+      const fromKeypair = Keypair.fromSecretKey(secretKeyArray);
+      const toPublicKey = new PublicKey(toAddress);
+      const lamports = Math.round(amountSol * LAMPORTS_PER_SOL);
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: fromKeypair.publicKey,
+          toPubkey: toPublicKey,
+          lamports,
+        })
+      );
+
+      const signature = await sendAndConfirmTransaction(connection, transaction, [fromKeypair]);
+
+      res.json({
+        success: true,
+        signature,
+        fromAddress: fromKeypair.publicKey.toBase58(),
+        toAddress: toPublicKey.toBase58(),
+        amountSol,
+        explorerUrl: `https://explorer.solana.com/tx/${signature}?cluster=devnet`,
+      });
+    } catch (err: any) {
+      console.error("Solana transfer error:", err.message);
+      res.status(500).json({ message: "Transaction failed", error: err.message });
+    }
+  });
+
+  app.post("/api/solana/airdrop", async (req, res) => {
+    try {
+      const { address } = req.body;
+      if (!address) return res.status(400).json({ message: "address required" });
+
+      const { Connection, PublicKey, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
+      const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+      const pubKey = new PublicKey(address);
+      const sig = await connection.requestAirdrop(pubKey, 1 * LAMPORTS_PER_SOL);
+      await connection.confirmTransaction(sig, "confirmed");
+
+      res.json({ success: true, signature: sig, amount: 1 });
+    } catch (err: any) {
+      console.error("Airdrop error:", err.message);
+      res.status(500).json({ message: "Airdrop failed", error: err.message });
+    }
+  });
+
+  app.get("/api/solana/balance/:address", async (req, res) => {
+    try {
+      const { Connection, PublicKey, LAMPORTS_PER_SOL } = await import("@solana/web3.js");
+      const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+      const pubKey = new PublicKey(req.params.address);
+      const balance = await connection.getBalance(pubKey);
+      res.json({ address: req.params.address, balance: balance / LAMPORTS_PER_SOL });
+    } catch (err: any) {
+      res.status(500).json({ message: "Balance check failed", error: err.message });
+    }
   });
 
   return httpServer;

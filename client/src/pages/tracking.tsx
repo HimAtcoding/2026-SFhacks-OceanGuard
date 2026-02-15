@@ -158,18 +158,28 @@ function GlobeComponent({
     relevantTracks.forEach(track => {
       const preds = grouped.get(track.id);
       if (!preds || preds.length === 0) return;
-      const furthest = preds.reduce((a, b) => a.hours > b.hours ? a : b);
-      arcs.push({
-        startLat: track.latitude,
-        startLng: track.longitude,
-        endLat: furthest.latitude,
-        endLng: furthest.longitude,
-        color: track.trackType === "kelp"
-          ? ["rgba(34, 197, 94, 0.8)", "rgba(34, 197, 94, 0.2)"]
-          : ["rgba(239, 68, 68, 0.8)", "rgba(239, 68, 68, 0.2)"],
-        stroke: 1,
-        dashLength: 0.3,
-        dashGap: 0.1,
+      const sorted = [...preds].sort((a, b) => a.hours - b.hours);
+      const isKelp = track.trackType === "kelp";
+      let prevLat = track.latitude;
+      let prevLng = track.longitude;
+      sorted.forEach((pred, i) => {
+        const opacity = 1.0 - (i * 0.15);
+        const thickness = 2.5 - (i * 0.4);
+        arcs.push({
+          startLat: prevLat,
+          startLng: prevLng,
+          endLat: pred.latitude,
+          endLng: pred.longitude,
+          color: isKelp
+            ? `rgba(34, 197, 94, ${opacity})`
+            : `rgba(239, 68, 68, ${opacity})`,
+          stroke: Math.max(0.8, thickness),
+          dashLength: 1,
+          dashGap: 0,
+          label: i === sorted.length - 1 ? `${pred.hours}h` : undefined,
+        });
+        prevLat = pred.latitude;
+        prevLng = pred.longitude;
       });
     });
     return arcs;
@@ -244,9 +254,10 @@ function GlobeComponent({
         arcEndLng="endLng"
         arcColor="color"
         arcStroke="stroke"
-        arcDashLength="dashLength"
-        arcDashGap="dashGap"
-        arcDashAnimateTime={2000}
+        arcDashLength={0.4}
+        arcDashGap={0.15}
+        arcDashAnimateTime={1200}
+        arcLabel="label"
         width={containerRef.current?.clientWidth || 700}
         height={containerRef.current?.clientHeight || 480}
         atmosphereColor="#0ea5e9"
@@ -289,8 +300,8 @@ function GlobeComponent({
         </div>
         {showPredictions && (
           <div className="flex items-center gap-1.5">
-            <div className="w-4 h-0.5 bg-[#22c55e] rounded" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 2px, #22c55e 2px, #22c55e 4px)" }} />
-            <span className="text-xs text-foreground">Predictions</span>
+            <svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="#22c55e" strokeWidth="2" /><polygon points="12,0 16,4 12,8" fill="#22c55e" /></svg>
+            <span className="text-xs text-foreground">Movement Path</span>
           </div>
         )}
       </div>

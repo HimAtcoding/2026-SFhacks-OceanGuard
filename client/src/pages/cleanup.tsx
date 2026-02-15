@@ -211,11 +211,19 @@ function WeatherSection({ cityId }: { cityId: string }) {
   );
 }
 
+const RECEIVER_WALLET = "GDwaNk7VnHi3HopFGEBsGPbqMcZzFC81eT91GtLSisan";
+
 function SolanaDonationSection() {
   const [donationAmount, setDonationAmount] = useState("");
   const [donorName, setDonorName] = useState("");
   const [purpose, setPurpose] = useState("Trash Bags & Supplies");
-  const [walletAddress, setWalletAddress] = useState("");
+  const [walletKey, setWalletKey] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+  const [txStatus, setTxStatus] = useState<string | null>(null);
+  const [lastTxSig, setLastTxSig] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [airdropPending, setAirdropPending] = useState(false);
 
   const { data: allDonations } = useQuery<Donation[]>({
     queryKey: ["/api/donations"],
@@ -228,9 +236,6 @@ function SolanaDonationSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/donations"] });
-      setDonationAmount("");
-      setDonorName("");
-      setWalletAddress("");
     },
   });
 
@@ -244,16 +249,93 @@ function SolanaDonationSection() {
   const totalDonated = (allDonations || []).reduce((s, d) => s + d.amount, 0);
   const completedDonations = (allDonations || []).filter(d => d.status === "completed").length;
 
-  const handleDonate = () => {
+  const generateWallet = async () => {
+    const { Keypair } = await import("@solana/web3.js");
+    const keypair = Keypair.generate();
+    const secretKeyJson = JSON.stringify(Array.from(keypair.secretKey));
+    setWalletKey(secretKeyJson);
+    setWalletAddress(keypair.publicKey.toBase58());
+    setBalance(0);
+    setTxStatus(null);
+    setLastTxSig(null);
+  };
+
+  const requestAirdrop = async () => {
+    if (!walletAddress) return;
+    setAirdropPending(true);
+    setTxStatus("Requesting devnet airdrop...");
+    try {
+      const res = await fetch("/api/solana/airdrop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: walletAddress }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTxStatus("Airdrop successful! Received 1 SOL");
+        refreshBalance();
+      } else {
+        setTxStatus("Airdrop failed: " + (data.error || "try again"));
+      }
+    } catch (err: any) {
+      setTxStatus("Airdrop error: " + err.message);
+    }
+    setAirdropPending(false);
+  };
+
+  const refreshBalance = async () => {
+    if (!walletAddress) return;
+    try {
+      const res = await fetch(`/api/solana/balance/${walletAddress}`);
+      const data = await res.json();
+      if (data.balance !== undefined) setBalance(data.balance);
+    } catch {}
+  };
+
+  const handleDonate = async () => {
+    if (!walletKey || !walletAddress) {
+      setTxStatus("Generate a wallet first");
+      return;
+    }
     const amt = parseFloat(donationAmount) || 0.1;
-    donationMutation.mutate({
-      amount: amt,
-      purpose,
-      donorName: donorName || "Anonymous",
-      walletAddress: walletAddress || null,
-      txSignature: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
-      status: "completed",
-    });
+    if (balance !== null && balance < amt) {
+      setTxStatus("Insufficient balance. Request an airdrop first.");
+      return;
+    }
+    setIsProcessing(true);
+    setTxStatus("Submitting transaction to Solana devnet...");
+    try {
+      const res = await fetch("/api/solana/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromSecretKey: walletKey,
+          toAddress: RECEIVER_WALLET,
+          amountSol: amt,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLastTxSig(data.signature);
+        setTxStatus("Transaction confirmed on-chain!");
+        donationMutation.mutate({
+          amount: amt,
+          purpose,
+          donorName: donorName || "Anonymous",
+          walletAddress: walletAddress,
+          txSignature: data.signature,
+          status: "completed",
+        });
+        refreshBalance();
+        setDonationAmount("");
+        setDonorName("");
+      } else {
+        setTxStatus("Transaction failed: " + (data.error || "unknown error"));
+      }
+    } catch (err: any) {
+      setTxStatus("Error: " + err.message);
+    }
+    setIsProcessing(false);
   };
 
   return (
@@ -261,24 +343,66 @@ function SolanaDonationSection() {
       <div className="flex items-center gap-2 mb-4">
         <SiSolana className="h-5 w-5 text-[#9945FF]" />
         <h3 className="font-semibold text-foreground text-sm">Solana Donation Hub</h3>
-        <Badge variant="outline" className="gap-1 text-[10px]">
-          Devnet
-        </Badge>
+        <Badge variant="outline" className="gap-1 text-[10px]">Devnet</Badge>
       </div>
 
       <div className="grid md:grid-cols-3 gap-4 mb-4">
         <div className="bg-muted rounded-md p-3 text-center">
-          <p className="text-2xl font-bold text-foreground">{totalDonated.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-foreground" data-testid="text-total-sol">{totalDonated.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground">Total SOL Donated</p>
         </div>
         <div className="bg-muted rounded-md p-3 text-center">
           <p className="text-2xl font-bold text-foreground">{completedDonations}</p>
-          <p className="text-xs text-muted-foreground">Completed Donations</p>
+          <p className="text-xs text-muted-foreground">On-Chain Transactions</p>
         </div>
         <div className="bg-muted rounded-md p-3 text-center">
           <p className="text-2xl font-bold text-foreground">{(allDonations || []).length}</p>
           <p className="text-xs text-muted-foreground">Total Donors</p>
         </div>
+      </div>
+
+      <div className="border border-border rounded-md p-4 mb-4 space-y-3" data-testid="section-wallet">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <h4 className="text-xs font-semibold text-foreground">Your Devnet Wallet</h4>
+          {!walletAddress ? (
+            <Button size="sm" onClick={generateWallet} data-testid="button-generate-wallet">
+              Generate Wallet
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={requestAirdrop} disabled={airdropPending} data-testid="button-airdrop">
+                {airdropPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                Request Airdrop (1 SOL)
+              </Button>
+              <Button size="sm" variant="outline" onClick={refreshBalance} data-testid="button-refresh-balance">
+                Balance: {balance !== null ? balance.toFixed(4) : "..."} SOL
+              </Button>
+            </div>
+          )}
+        </div>
+        {walletAddress && (
+          <div className="bg-muted rounded-md p-2">
+            <p className="text-[10px] text-muted-foreground mb-0.5">Wallet Address</p>
+            <p className="text-xs font-mono text-foreground break-all" data-testid="text-wallet-address">{walletAddress}</p>
+          </div>
+        )}
+        {txStatus && (
+          <p className={`text-xs ${txStatus.includes("confirmed") || txStatus.includes("successful") ? "text-chart-2" : txStatus.includes("failed") || txStatus.includes("Error") || txStatus.includes("Insufficient") ? "text-destructive" : "text-muted-foreground"}`} data-testid="text-tx-status">
+            {txStatus}
+          </p>
+        )}
+        {lastTxSig && (
+          <a
+            href={`https://explorer.solana.com/tx/${lastTxSig}?cluster=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-primary underline inline-flex items-center gap-1"
+            data-testid="link-explorer"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View on Solana Explorer
+          </a>
+        )}
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -324,34 +448,28 @@ function SolanaDonationSection() {
               data-testid="input-donor-name"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-foreground mb-1 block">Wallet Address (optional)</label>
-            <Input
-              value={walletAddress}
-              onChange={(e) => setWalletAddress(e.target.value)}
-              placeholder="Phantom wallet address"
-              data-testid="input-wallet-address"
-            />
-          </div>
           <Button
             onClick={handleDonate}
-            disabled={donationMutation.isPending}
+            disabled={isProcessing || donationMutation.isPending || !walletAddress}
             className="w-full gap-2"
             data-testid="button-donate"
           >
-            {donationMutation.isPending ? (
+            {isProcessing || donationMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <SiSolana className="h-4 w-4" />
             )}
-            Donate {donationAmount || "0.1"} SOL for {purpose}
+            {!walletAddress ? "Generate wallet to donate" : `Send ${donationAmount || "0.1"} SOL for ${purpose}`}
           </Button>
+          <p className="text-[10px] text-muted-foreground text-center">
+            Transactions are processed on Solana devnet. Receiver: {RECEIVER_WALLET.slice(0, 8)}...{RECEIVER_WALLET.slice(-4)}
+          </p>
         </div>
       </div>
 
       {(allDonations || []).length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
-          <h4 className="text-xs font-medium text-foreground mb-2">Recent Donations</h4>
+          <h4 className="text-xs font-medium text-foreground mb-2">On-Chain Transaction Ledger</h4>
           <div className="space-y-2 max-h-[200px] overflow-auto">
             {(allDonations || []).slice(0, 10).map((d) => (
               <div key={d.id} className="flex items-center gap-2 text-xs bg-muted/50 rounded p-2" data-testid={`row-donation-${d.id}`}>
@@ -359,8 +477,10 @@ function SolanaDonationSection() {
                 <span className="font-medium text-foreground">{d.donorName || "Anonymous"}</span>
                 <span className="text-muted-foreground">{d.purpose}</span>
                 <span className="ml-auto font-bold text-foreground">{d.amount.toFixed(2)} SOL</span>
-                {d.txSignature && (
-                  <span className="text-muted-foreground font-mono text-[10px] truncate max-w-[80px]">{d.txSignature.slice(0, 12)}...</span>
+                {d.txSignature && !d.txSignature.startsWith("sim_") && (
+                  <a href={`https://explorer.solana.com/tx/${d.txSignature}?cluster=devnet`} target="_blank" rel="noopener noreferrer" className="text-primary">
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                 )}
               </div>
             ))}

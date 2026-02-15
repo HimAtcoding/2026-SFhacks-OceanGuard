@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   Satellite,
   Volume2,
   VolumeX,
+  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -199,37 +200,49 @@ function LoadingSkeleton() {
 
 function useVoiceNarration() {
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const speak = (text: string) => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.volume = 0.9;
-      const voices = window.speechSynthesis.getVoices();
-      const preferred = voices.find(v => v.name.includes("Google") || v.name.includes("Samantha") || v.lang === "en-US");
-      if (preferred) utterance.voice = preferred;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  const stop = () => {
-    if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+  const speak = async (text: string) => {
+    if (isSpeaking || isLoading) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => { setIsSpeaking(true); setIsLoading(false); };
+      audio.onended = () => { setIsSpeaking(false); URL.revokeObjectURL(url); };
+      audio.onerror = () => { setIsSpeaking(false); setIsLoading(false); URL.revokeObjectURL(url); };
+      audio.play();
+    } catch {
+      setIsLoading(false);
       setIsSpeaking(false);
     }
   };
 
-  return { speak, stop, isSpeaking };
+  const stop = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    setIsSpeaking(false);
+    setIsLoading(false);
+  };
+
+  return { speak, stop, isSpeaking, isLoading };
 }
 
 export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(new Date());
-  const { speak, stop, isSpeaking } = useVoiceNarration();
+  const { speak, stop, isSpeaking, isLoading: ttsLoading } = useVoiceNarration();
 
   const { data: scans, isLoading: scansLoading } = useQuery<DroneScan[]>({
     queryKey: ["/api/scans"],
@@ -302,6 +315,7 @@ export default function Dashboard() {
           <Button
             size="icon"
             variant="ghost"
+            disabled={ttsLoading}
             data-testid="button-voice-narration"
             onClick={() => {
               if (isSpeaking) {
@@ -314,7 +328,7 @@ export default function Dashboard() {
               }
             }}
           >
-            {isSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            {ttsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isSpeaking ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </Button>
           {activeAlerts.length > 0 && (
             <Badge variant="destructive" className="gap-1">
