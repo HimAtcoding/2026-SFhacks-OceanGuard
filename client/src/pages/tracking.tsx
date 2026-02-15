@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 
 function getRatingColor(rating: string): string {
@@ -82,6 +83,7 @@ const SKY_URL = "//unpkg.com/three-globe/example/img/night-sky.png";
 interface LayerState {
   currents: boolean;
   kelp: boolean;
+  trash: boolean;
   topography: boolean;
   ecoMarkers: boolean;
 }
@@ -115,6 +117,14 @@ const LAYER_CONFIG: {
     color: "#22c55e",
     description: "Pulsing rings indicate kelp forest density zones. Kelp forests are critical carbon sinks and biodiversity hotspots, absorbing CO2 and sheltering hundreds of marine species.",
     source: "OceanGuard drone scan aggregation",
+  },
+  {
+    key: "trash",
+    label: "Trash Zones",
+    icon: AlertTriangle,
+    color: "#ef4444",
+    description: "Red pulsing rings show marine debris concentration areas. Trash accumulation threatens ecosystems through entanglement, microplastic release, and habitat destruction.",
+    source: "OceanGuard drone scan detection",
   },
   {
     key: "topography",
@@ -228,7 +238,6 @@ function separatePositions(
 
 function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
   const cityKelp = tracks.filter(t => t.cityId === city.id && t.trackType === "kelp");
-  const cityTrash = tracks.filter(t => t.cityId === city.id && t.trackType === "trash");
   const rings: any[] = [];
   const rng = seededRandom(Math.abs(Math.round(city.latitude * 1000 + city.longitude * 1000)) + 42);
   const cosLat = Math.cos(city.latitude * Math.PI / 180) || 0.5;
@@ -282,8 +291,14 @@ function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
       });
     }
   }
+  return rings;
+}
 
-  const trashRings = cityTrash.slice(0, 6).map((track) => {
+function generateTrashRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
+  const cityTrash = tracks.filter(t => t.cityId === city.id && t.trackType === "trash");
+  const rng = seededRandom(Math.abs(Math.round(city.latitude * 1000 + city.longitude * 1000)) + 77);
+
+  return cityTrash.slice(0, 6).map((track) => {
     const density = track.density || 0.5;
     return {
       lat: track.latitude,
@@ -295,26 +310,16 @@ function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
       type: "trash",
       info: {
         title: "Trash Concentration",
-        description: `Marine debris detected near ${city.cityName}. Trash accumulation threatens local ecosystems, entangling wildlife and releasing microplastics into the food chain. Current density: ${(density).toFixed(1)} units/km².`,
+        description: `Marine debris detected near ${city.cityName}. Trash accumulation threatens local ecosystems, entangling wildlife and releasing microplastics into the food chain. Current density: ${(density).toFixed(1)} units/km\u00B2.`,
         stats: [
-          { label: "Density", value: `${(density).toFixed(1)}/km²` },
-          { label: "Direction", value: `${track.movementDirection?.toFixed(0) || 0}°` },
+          { label: "Density", value: `${(density).toFixed(1)}/km\u00B2` },
+          { label: "Direction", value: `${track.movementDirection?.toFixed(0) || 0}\u00B0` },
           { label: "Drift Speed", value: `${(track.speed || 0).toFixed(1)} km/h` },
           { label: "Risk", value: density > 50 ? "High" : density > 20 ? "Moderate" : "Low" },
         ],
       },
     };
   });
-
-  const allRings = [...rings, ...trashRings];
-  const items = allRings.map(r => ({ lat: r.lat, lng: r.lng, radius: r.maxR }));
-  const separated = separatePositions(items, cosLat, 0.1, 4);
-  separated.forEach((pos, i) => {
-    allRings[i].lat = pos.lat;
-    allRings[i].lng = pos.lng;
-  });
-
-  return allRings;
 }
 
 function generateEcoMarkers(city: CityMonitor) {
@@ -404,6 +409,7 @@ function GlobeComponent({
   const [layers, setLayers] = useState<LayerState>({
     currents: true,
     kelp: true,
+    trash: true,
     topography: true,
     ecoMarkers: true,
   });
@@ -543,15 +549,56 @@ function GlobeComponent({
     return generateOceanCurrents(selectedCity);
   }, [selectedCity, layers.currents]);
 
-  const kelpRings = useMemo(() => {
-    if (!selectedCity || !layers.kelp) return [];
+  const rawKelpRings = useMemo(() => {
+    if (!selectedCity) return [];
     return generateKelpRings(selectedCity, tracks);
-  }, [selectedCity, layers.kelp, tracks]);
+  }, [selectedCity, tracks]);
 
-  const ecoLabels = useMemo(() => {
-    if (!selectedCity || !layers.ecoMarkers) return [];
+  const rawTrashRings = useMemo(() => {
+    if (!selectedCity) return [];
+    return generateTrashRings(selectedCity, tracks);
+  }, [selectedCity, tracks]);
+
+  const rawEcoLabels = useMemo(() => {
+    if (!selectedCity) return [];
     return generateEcoMarkers(selectedCity);
-  }, [selectedCity, layers.ecoMarkers]);
+  }, [selectedCity]);
+
+  const { kelpRings, trashRings, ecoLabels } = useMemo(() => {
+    if (!selectedCity) return { kelpRings: [], trashRings: [], ecoLabels: [] };
+    const cosLat = Math.cos(selectedCity.latitude * Math.PI / 180) || 0.5;
+
+    const allItems: { lat: number; lng: number; radius: number; source: "kelp" | "trash" | "eco"; idx: number }[] = [];
+
+    if (layers.kelp) {
+      rawKelpRings.forEach((r, i) => allItems.push({ lat: r.lat, lng: r.lng, radius: r.maxR, source: "kelp", idx: i }));
+    }
+    if (layers.trash) {
+      rawTrashRings.forEach((r, i) => allItems.push({ lat: r.lat, lng: r.lng, radius: r.maxR, source: "trash", idx: i }));
+    }
+    if (layers.ecoMarkers) {
+      rawEcoLabels.forEach((l, i) => allItems.push({ lat: l.lat, lng: l.lng, radius: 0.08, source: "eco", idx: i }));
+    }
+
+    const separated = separatePositions(allItems, cosLat, 0.12, 5);
+
+    const kOut = layers.kelp ? rawKelpRings.map((r, i) => ({ ...r })) : [];
+    const tOut = layers.trash ? rawTrashRings.map((r, i) => ({ ...r })) : [];
+    const eOut = layers.ecoMarkers ? rawEcoLabels.map((l, i) => ({ ...l })) : [];
+
+    let si = 0;
+    if (layers.kelp) {
+      kOut.forEach((r, i) => { r.lat = separated[si].lat; r.lng = separated[si].lng; si++; });
+    }
+    if (layers.trash) {
+      tOut.forEach((r, i) => { r.lat = separated[si].lat; r.lng = separated[si].lng; si++; });
+    }
+    if (layers.ecoMarkers) {
+      eOut.forEach((l, i) => { l.lat = separated[si].lat; l.lng = separated[si].lng; si++; });
+    }
+
+    return { kelpRings: kOut, trashRings: tOut, ecoLabels: eOut };
+  }, [selectedCity, rawKelpRings, rawTrashRings, rawEcoLabels, layers.kelp, layers.trash, layers.ecoMarkers]);
 
   const globeTexture = selectedCity && layers.topography ? TOPO_URL : MARBLE_URL;
 
@@ -633,7 +680,7 @@ function GlobeComponent({
         pathDashAnimateTime={(d: any) => d.animateTime}
         pathTransitionDuration={800}
         onPathClick={(path: any) => { if (path?.info) setInfoData(path.info); }}
-        ringsData={kelpRings}
+        ringsData={[...kelpRings, ...trashRings]}
         ringLat="lat"
         ringLng="lng"
         ringMaxRadius="maxR"
