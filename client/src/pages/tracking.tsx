@@ -22,6 +22,8 @@ import {
   ThermometerSun,
   Activity,
   Crosshair,
+  X,
+  Layers,
 } from "lucide-react";
 
 function getRatingColor(rating: string): string {
@@ -69,6 +71,212 @@ interface PredictionPoint {
   confidence: number;
 }
 
+const MARBLE_URL = "//unpkg.com/three-globe/example/img/earth-blue-marble.jpg";
+const TOPO_URL = "//unpkg.com/three-globe/example/img/earth-topology.png";
+const BUMP_URL = "//unpkg.com/three-globe/example/img/earth-topology.png";
+const SKY_URL = "//unpkg.com/three-globe/example/img/night-sky.png";
+
+interface LayerState {
+  currents: boolean;
+  kelp: boolean;
+  topography: boolean;
+  ecoMarkers: boolean;
+}
+
+interface InfoData {
+  title: string;
+  description: string;
+  stats?: { label: string; value: string }[];
+}
+
+const LAYER_CONFIG: { key: keyof LayerState; label: string; icon: any }[] = [
+  { key: "currents", label: "Ocean Currents", icon: Waves },
+  { key: "kelp", label: "Kelp Coverage", icon: Leaf },
+  { key: "topography", label: "Topography", icon: Activity },
+  { key: "ecoMarkers", label: "Ecosystem Info", icon: MapPin },
+];
+
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+function generateOceanCurrents(city: CityMonitor) {
+  const lat = city.latitude;
+  const lng = city.longitude;
+  const R = 0.72;
+  const isNorthern = lat > 0;
+  const speed = city.currentSpeed || 0.5;
+  const cosLat = Math.cos(lat * Math.PI / 180) || 0.5;
+  const rng = seededRandom(Math.abs(Math.round(lat * 1000 + lng * 1000)));
+
+  const baseAngle = isNorthern ? -25 : 25;
+  const paths: any[] = [];
+
+  for (let i = 0; i < 14; i++) {
+    const streamOffset = ((i / 14) - 0.5) * R * 1.6;
+    const angle = (baseAngle + (rng() - 0.5) * 50) * Math.PI / 180;
+    const pathLen = R * (0.5 + rng() * 0.7);
+    const curvature = (rng() - 0.5) * 0.5;
+    const numPts = 7;
+    const points: { lat: number; lng: number }[] = [];
+
+    for (let j = 0; j < numPts; j++) {
+      const t = j / (numPts - 1);
+      const along = (t - 0.5) * pathLen;
+      const across = streamOffset + curvature * Math.sin(t * Math.PI) * R * 0.3;
+      points.push({
+        lat: lat + along * Math.sin(angle) + across * Math.cos(angle),
+        lng: lng + (along * Math.cos(angle) - across * Math.sin(angle)) / cosLat,
+      });
+    }
+
+    const opacity = 0.35 + rng() * 0.35;
+    paths.push({
+      points,
+      color: `rgba(6, 182, 212, ${opacity})`,
+      stroke: 0.6 + speed * 1.2 + rng() * 0.6,
+      animateTime: 1200 + (1 - speed) * 2000 + rng() * 1500,
+      info: {
+        title: "Ocean Current",
+        description: `This current flows ${isNorthern ? "as part of a clockwise gyre typical of the Northern Hemisphere" : "in a counterclockwise gyre pattern typical of the Southern Hemisphere"}. Near ${city.cityName}, surface currents move at approximately ${speed.toFixed(1)} m/s, transporting nutrients, heat, and marine organisms. These flows are critical for distributing plankton and regulating regional water temperatures.`,
+        stats: [
+          { label: "Speed", value: `${speed.toFixed(1)} m/s` },
+          { label: "Depth Range", value: "0-200m" },
+          { label: "Water Temp", value: `${(city.waterTemp || 18).toFixed(1)}C` },
+          { label: "Gyre", value: isNorthern ? "Clockwise" : "Counter-CW" },
+        ],
+      },
+    });
+  }
+  return paths;
+}
+
+function generateKelpRings(city: CityMonitor, tracks: KelpTrashTrack[]) {
+  const cityKelp = tracks.filter(t => t.cityId === city.id && t.trackType === "kelp");
+  const rings: any[] = [];
+  const rng = seededRandom(Math.abs(Math.round(city.latitude * 1000 + city.longitude * 1000)) + 42);
+  const cosLat = Math.cos(city.latitude * Math.PI / 180) || 0.5;
+
+  cityKelp.slice(0, 8).forEach((track) => {
+    const density = track.density || 0.5;
+    rings.push({
+      lat: track.latitude,
+      lng: track.longitude,
+      maxR: 0.03 + density * 0.06,
+      speed: 0.3 + rng() * 0.4,
+      period: 2500 + rng() * 2000,
+      color: (t: number) => `rgba(34, 197, 94, ${Math.max(0, 0.45 * (1 - t))})`,
+      info: {
+        title: "Kelp Forest Zone",
+        description: `Kelp forests near ${city.cityName} function as vital underwater carbon sinks, absorbing atmospheric CO2 while sheltering hundreds of marine species. A healthy kelp forest sequesters up to 20 times more carbon per hectare than terrestrial forests and generates significant dissolved oxygen.`,
+        stats: [
+          { label: "Density", value: `${(density * 100).toFixed(0)}%` },
+          { label: "Carbon Capture", value: `${(density * 12).toFixed(1)} t/yr` },
+          { label: "Biodiversity", value: density > 0.6 ? "High" : "Moderate" },
+          { label: "Health", value: city.kelpHealthRating },
+        ],
+      },
+    });
+  });
+
+  if (rings.length < 5) {
+    const needed = 5 - rings.length;
+    for (let i = 0; i < needed; i++) {
+      const angle = (i / needed) * Math.PI * 2 + rng() * 0.8;
+      const r = 0.12 + rng() * 0.35;
+      rings.push({
+        lat: city.latitude + r * Math.sin(angle),
+        lng: city.longitude + (r * Math.cos(angle)) / cosLat,
+        maxR: 0.02 + rng() * 0.04,
+        speed: 0.25 + rng() * 0.35,
+        period: 3000 + rng() * 2000,
+        color: (t: number) => `rgba(34, 197, 94, ${Math.max(0, 0.3 * (1 - t))})`,
+        info: {
+          title: "Potential Kelp Habitat",
+          description: `This area near ${city.cityName} has favorable conditions for marine vegetation: suitable water temperature, nutrient levels, and light penetration. Monitoring indicates ${city.kelpHealthRating.toLowerCase()} overall kelp ecosystem health across this region.`,
+          stats: [
+            { label: "Suitability", value: "Moderate" },
+            { label: "Water Temp", value: `${(city.waterTemp || 18).toFixed(1)}C` },
+            { label: "Depth", value: "5-30m" },
+            { label: "Status", value: "Monitored" },
+          ],
+        },
+      });
+    }
+  }
+  return rings;
+}
+
+function generateEcoMarkers(city: CityMonitor) {
+  const cosLat = Math.cos(city.latitude * Math.PI / 180) || 0.5;
+  const rng = seededRandom(Math.abs(Math.round(city.latitude * 1000 + city.longitude * 1000)) + 99);
+
+  const defs = [
+    {
+      title: "Marine Protected Area",
+      offset: { lat: 0.18, lng: 0.22 },
+      colorHex: "#22c55e",
+      description: `This marine protected area near ${city.cityName} restricts human activity to preserve biodiversity. Protected marine zones have demonstrated up to 600% increases in fish biomass and 21% greater species richness compared to unprotected areas. These zones are critical for allowing degraded ecosystems to recover naturally.`,
+      stats: [
+        { label: "Protection", value: "IUCN Cat. II" },
+        { label: "Area", value: `${(150 + rng() * 200).toFixed(0)} km2` },
+        { label: "Species", value: `${(80 + Math.floor(rng() * 120))}+` },
+        { label: "Established", value: `${2005 + Math.floor(rng() * 15)}` },
+      ],
+    },
+    {
+      title: "Coral Reef System",
+      offset: { lat: -0.15, lng: -0.2 },
+      colorHex: "#f59e0b",
+      description: `Coral reefs near ${city.cityName} support roughly 25% of all marine species while covering less than 1% of the ocean floor. These reefs serve as natural breakwaters, protecting coastlines from wave energy and erosion. Rising ocean temperatures pose increasing bleaching risks to reef health.`,
+      stats: [
+        { label: "Coverage", value: `${(5 + rng() * 15).toFixed(1)} km2` },
+        { label: "Health", value: city.waterTemp && city.waterTemp > 26 ? "At Risk" : "Stable" },
+        { label: "Bleaching", value: `${(5 + rng() * 20).toFixed(0)}%` },
+        { label: "Diversity", value: "High" },
+      ],
+    },
+    {
+      title: "Shipping Corridor",
+      offset: { lat: 0.28, lng: -0.12 },
+      colorHex: "#94a3b8",
+      description: `Major shipping routes near ${city.cityName} carry vital global trade but contribute to ocean noise pollution, oil spill risks, and marine life collisions. Vessel traffic through this corridor averages significant daily transits, requiring careful regulation to balance economic demand with ecological preservation.`,
+      stats: [
+        { label: "Traffic", value: `${(20 + Math.floor(rng() * 40))}/day` },
+        { label: "Noise Impact", value: "Moderate" },
+        { label: "Speed Limit", value: "12 knots" },
+        { label: "Monitoring", value: "Active" },
+      ],
+    },
+    {
+      title: "Research Station",
+      offset: { lat: -0.22, lng: 0.18 },
+      colorHex: "#0ea5e9",
+      description: `This oceanographic station continuously monitors water temperature, salinity, current patterns, and marine populations around ${city.cityName}. Data from stations like this feeds directly into OceanGuard's prediction models for kelp drift and debris movement forecasting.`,
+      stats: [
+        { label: "Sensors", value: `${(12 + Math.floor(rng() * 8))}` },
+        { label: "Data Rate", value: "1 Hz" },
+        { label: "Max Depth", value: `${(50 + Math.floor(rng() * 150))}m` },
+        { label: "Uptime", value: "99.7%" },
+      ],
+    },
+  ];
+
+  return defs.map((m) => ({
+    lat: city.latitude + m.offset.lat,
+    lng: city.longitude + m.offset.lng / cosLat,
+    text: m.title,
+    size: 0.55,
+    color: () => m.colorHex,
+    dotRadius: 0.25,
+    info: { title: m.title, description: m.description, stats: m.stats },
+  }));
+}
+
 function GlobeComponent({
   cities,
   tracks,
@@ -87,6 +295,17 @@ function GlobeComponent({
   const [GlobeGL, setGlobeGL] = useState<any>(null);
   const [showPredictions, setShowPredictions] = useState(true);
   const [globeError, setGlobeError] = useState(false);
+  const [layers, setLayers] = useState<LayerState>({
+    currents: true,
+    kelp: true,
+    topography: true,
+    ecoMarkers: true,
+  });
+  const [infoData, setInfoData] = useState<InfoData | null>(null);
+
+  const toggleLayer = useCallback((key: keyof LayerState) => {
+    setLayers(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   useEffect(() => {
     try {
@@ -106,15 +325,31 @@ function GlobeComponent({
   }, []);
 
   useEffect(() => {
+    setInfoData(null);
     if (globeRef.current && selectedCity) {
       globeRef.current.pointOfView(
-        { lat: selectedCity.latitude, lng: selectedCity.longitude, altitude: 0.5 },
+        { lat: selectedCity.latitude, lng: selectedCity.longitude, altitude: 0.35 },
         1500
       );
     } else if (globeRef.current && !selectedCity) {
       globeRef.current.pointOfView({ lat: 20, lng: 0, altitude: 2.2 }, 1500);
     }
   }, [selectedCity]);
+
+  useEffect(() => {
+    if (!globeRef.current || !GlobeGL) return;
+    try {
+      const material = globeRef.current.globeMaterial();
+      if (!material) return;
+      if (selectedCity && layers.topography) {
+        material.color.set(0x88bbaa);
+        material.bumpScale = 14;
+      } else {
+        material.color.set(0xffffff);
+        material.bumpScale = 10;
+      }
+    } catch {}
+  }, [selectedCity, layers.topography, GlobeGL]);
 
   const cityPoints = useMemo(() => cities.map(c => ({
     lat: c.latitude,
@@ -187,9 +422,26 @@ function GlobeComponent({
 
   const allPoints = useMemo(() => [
     ...cityPoints,
-    ...kelpPoints,
-    ...trashPoints,
-  ], [cityPoints, kelpPoints, trashPoints]);
+    ...(selectedCity ? [] : kelpPoints),
+    ...(selectedCity ? [] : trashPoints),
+  ], [cityPoints, kelpPoints, trashPoints, selectedCity]);
+
+  const oceanCurrents = useMemo(() => {
+    if (!selectedCity || !layers.currents) return [];
+    return generateOceanCurrents(selectedCity);
+  }, [selectedCity, layers.currents]);
+
+  const kelpRings = useMemo(() => {
+    if (!selectedCity || !layers.kelp) return [];
+    return generateKelpRings(selectedCity, tracks);
+  }, [selectedCity, layers.kelp, tracks]);
+
+  const ecoLabels = useMemo(() => {
+    if (!selectedCity || !layers.ecoMarkers) return [];
+    return generateEcoMarkers(selectedCity);
+  }, [selectedCity, layers.ecoMarkers]);
+
+  const globeTexture = selectedCity && layers.topography ? TOPO_URL : MARBLE_URL;
 
   if (globeError) {
     return (
@@ -232,9 +484,9 @@ function GlobeComponent({
     <div ref={containerRef} className="relative h-full w-full" data-testid="section-globe">
       <GlobeGL
         ref={globeRef}
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
-        bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
-        backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
+        globeImageUrl={globeTexture}
+        bumpImageUrl={BUMP_URL}
+        backgroundImageUrl={SKY_URL}
         pointsData={allPoints}
         pointLat="lat"
         pointLng="lng"
@@ -258,19 +510,47 @@ function GlobeComponent({
         arcDashGap={0.15}
         arcDashAnimateTime={1200}
         arcLabel="label"
+        pathsData={oceanCurrents}
+        pathPoints="points"
+        pathPointLat={(p: any) => p.lat}
+        pathPointLng={(p: any) => p.lng}
+        pathColor="color"
+        pathStroke="stroke"
+        pathDashLength={0.15}
+        pathDashGap={0.06}
+        pathDashAnimateTime={(d: any) => d.animateTime}
+        pathTransitionDuration={800}
+        onPathClick={(path: any) => { if (path?.info) setInfoData(path.info); }}
+        ringsData={kelpRings}
+        ringLat="lat"
+        ringLng="lng"
+        ringMaxRadius="maxR"
+        ringPropagationSpeed="speed"
+        ringRepeatPeriod="period"
+        ringColor="color"
+        onRingClick={(ring: any) => { if (ring?.info) setInfoData(ring.info); }}
+        labelsData={ecoLabels}
+        labelLat="lat"
+        labelLng="lng"
+        labelText="text"
+        labelSize="size"
+        labelColor="color"
+        labelDotRadius="dotRadius"
+        labelResolution={2}
+        labelAltitude={0.01}
+        onLabelClick={(label: any) => { if (label?.info) setInfoData(label.info); }}
         width={containerRef.current?.clientWidth || 700}
         height={containerRef.current?.clientHeight || 480}
-        atmosphereColor="#0ea5e9"
-        atmosphereAltitude={0.15}
+        atmosphereColor={selectedCity && layers.topography ? "#06b6d4" : "#0ea5e9"}
+        atmosphereAltitude={selectedCity ? 0.12 : 0.15}
       />
-      <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
+
+      <div className="absolute top-3 right-3 flex flex-col gap-1.5 z-10">
         <Button
           size="icon"
           variant="outline"
           className="bg-background/80 backdrop-blur-sm"
-          onClick={() => {
-            onCitySelect(null);
-          }}
+          onClick={() => onCitySelect(null)}
           data-testid="button-globe-reset"
         >
           <Maximize2 className="h-4 w-4" />
@@ -285,7 +565,59 @@ function GlobeComponent({
           <Eye className="h-4 w-4" />
         </Button>
       </div>
-      <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 z-10">
+
+      {selectedCity && (
+        <div className="absolute top-3 left-3 z-10 pointer-events-auto" data-testid="section-layer-controls">
+          <div className="bg-background/90 backdrop-blur-sm rounded-md p-2 space-y-0.5 min-w-[156px]">
+            <div className="flex items-center gap-1.5 px-1 pb-1.5 mb-0.5 border-b border-border/50">
+              <Layers className="h-3 w-3 text-muted-foreground" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Layers</span>
+            </div>
+            {LAYER_CONFIG.map(({ key, label, icon: Icon }) => {
+              const active = layers[key];
+              return (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={active ? "default" : "ghost"}
+                  className="gap-2 text-xs justify-start w-full"
+                  onClick={() => toggleLayer(key)}
+                  data-testid={`button-toggle-${key}`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {infoData && (
+        <Card className="absolute bottom-14 right-3 z-20 w-72 bg-background/95 backdrop-blur-sm pointer-events-auto" data-testid="section-info-panel">
+          <div className="p-3 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <h4 className="text-sm font-semibold text-foreground">{infoData.title}</h4>
+              <Button size="icon" variant="ghost" onClick={() => setInfoData(null)} data-testid="button-close-info">
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">{infoData.description}</p>
+            {infoData.stats && infoData.stats.length > 0 && (
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                {infoData.stats.map((s, i) => (
+                  <div key={i} className="bg-muted rounded-md px-2 py-1.5 text-center">
+                    <p className="text-xs font-semibold text-foreground">{s.value}</p>
+                    <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      <div className="absolute bottom-3 left-3 flex items-center gap-3 bg-background/80 backdrop-blur-sm rounded-md px-3 py-2 z-10 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" />
           <span className="text-xs text-foreground">Kelp</span>
@@ -298,10 +630,16 @@ function GlobeComponent({
           <div className="w-2.5 h-2.5 rounded-full bg-[#0ea5e9]" />
           <span className="text-xs text-foreground">City</span>
         </div>
+        {selectedCity && layers.currents && (
+          <div className="flex items-center gap-1.5">
+            <svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="#06b6d4" strokeWidth="2" strokeDasharray="3 2" /><polygon points="12,0 16,4 12,8" fill="#06b6d4" /></svg>
+            <span className="text-xs text-foreground">Current</span>
+          </div>
+        )}
         {showPredictions && (
           <div className="flex items-center gap-1.5">
             <svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="#22c55e" strokeWidth="2" /><polygon points="12,0 16,4 12,8" fill="#22c55e" /></svg>
-            <span className="text-xs text-foreground">Movement Path</span>
+            <span className="text-xs text-foreground">Drift Path</span>
           </div>
         )}
       </div>
