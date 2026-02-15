@@ -203,6 +203,17 @@ function useVoiceNarration() {
   const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const speakWithBrowser = (text: string) => {
+    if (!window.speechSynthesis) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.onstart = () => { setIsSpeaking(true); setIsLoading(false); };
+    utterance.onend = () => { setIsSpeaking(false); };
+    utterance.onerror = () => { setIsSpeaking(false); setIsLoading(false); };
+    window.speechSynthesis.speak(utterance);
+  };
+
   const speak = async (text: string) => {
     if (isSpeaking || isLoading) return;
     setIsLoading(true);
@@ -222,8 +233,7 @@ function useVoiceNarration() {
       audio.onerror = () => { setIsSpeaking(false); setIsLoading(false); URL.revokeObjectURL(url); };
       audio.play();
     } catch {
-      setIsLoading(false);
-      setIsSpeaking(false);
+      speakWithBrowser(text);
     }
   };
 
@@ -233,6 +243,7 @@ function useVoiceNarration() {
       audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
+    window.speechSynthesis?.cancel();
     setIsSpeaking(false);
     setIsLoading(false);
   };

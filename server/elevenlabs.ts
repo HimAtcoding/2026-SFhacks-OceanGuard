@@ -1,7 +1,4 @@
-import { ElevenLabsClient } from 'elevenlabs';
 import WebSocket from 'ws';
-
-let connectionSettings: any;
 
 async function getCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
@@ -15,7 +12,7 @@ async function getCredentials() {
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
 
-  connectionSettings = await fetch(
+  const res = await fetch(
     'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=elevenlabs',
     {
       headers: {
@@ -23,30 +20,48 @@ async function getCredentials() {
         'X_REPLIT_TOKEN': xReplitToken
       }
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
+  );
+  const data = await res.json();
+  const connectionSettings = data.items?.[0];
 
-  if (!connectionSettings || !connectionSettings.settings.api_key) {
-    throw new Error('ElevenLabs not connected');
+  if (!connectionSettings || !connectionSettings.settings?.api_key) {
+    throw new Error('ElevenLabs not connected - no API key found');
   }
   return connectionSettings.settings.api_key;
 }
 
-export async function getElevenLabsClient() {
-  const apiKey = await getCredentials();
-  return new ElevenLabsClient({ apiKey });
+export async function getElevenLabsApiKey() {
+  return await getCredentials();
 }
 
 export async function textToSpeechBuffer(text: string, voiceId: string = 'pFZP5JQG7iQjIQuC4Bku'): Promise<Buffer> {
-  const client = await getElevenLabsClient();
-  const audioStream = await client.textToSpeech.convert(voiceId, {
-    text,
-    model_id: 'eleven_flash_v2_5',
-    output_format: 'mp3_44100_128',
-  });
+  const apiKey = await getCredentials();
 
-  const chunks: Buffer[] = [];
-  for await (const chunk of audioStream) {
-    chunks.push(Buffer.from(chunk));
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+    {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: 'eleven_flash_v2_5',
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`ElevenLabs API error ${response.status}: ${errorText}`);
   }
-  return Buffer.concat(chunks);
+
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
