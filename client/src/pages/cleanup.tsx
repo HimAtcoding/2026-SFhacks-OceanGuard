@@ -186,7 +186,7 @@ function LiveTranscript({ callLogId }: { callLogId: string }) {
       {entries.length > 0 && (
         <div ref={scrollRef} className="max-h-36 overflow-y-auto space-y-1.5 bg-muted rounded-md p-2">
           {entries.map((entry, i) => (
-            <div key={i} className={`text-[11px] leading-relaxed ${entry.role === "agent" ? "text-primary" : "text-foreground"}`}>
+            <div key={i} className={`text-[11px] leading-relaxed ${entry.role === "agent" ? "text-chart-2" : "text-foreground"}`}>
               <span className="font-semibold">{entry.role === "agent" ? "OceanGuard" : "Recipient"}:</span>{" "}
               {entry.text}
             </div>
@@ -361,7 +361,7 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
               {expandedLogId === log.id && log.transcript && (
                 <div className="mt-1 mb-1 bg-muted rounded-md p-2 max-h-32 overflow-y-auto">
                   {log.transcript.split("\n").map((line, i) => (
-                    <p key={i} className={`text-[10px] leading-relaxed ${line.startsWith("OceanGuard:") ? "text-primary" : "text-foreground"}`}>
+                    <p key={i} className={`text-[10px] leading-relaxed ${line.startsWith("OceanGuard:") ? "text-chart-2" : "text-foreground"}`}>
                       {line}
                     </p>
                   ))}
@@ -878,7 +878,7 @@ const roleTypeIcons: Record<string, any> = {
 
 const roleTypeColors: Record<string, string> = {
   safety: "text-destructive",
-  organizer: "text-primary",
+  organizer: "text-chart-1",
   technical: "text-chart-1",
   scientific: "text-chart-2",
   logistics: "text-chart-4",
@@ -887,7 +887,7 @@ const roleTypeColors: Record<string, string> = {
 
 function JobCard({ job, onApply }: { job: CleanupJob; onApply: (job: CleanupJob) => void }) {
   const Icon = roleTypeIcons[job.roleType] || Briefcase;
-  const colorClass = roleTypeColors[job.roleType] || "text-primary";
+  const colorClass = roleTypeColors[job.roleType] || "text-chart-1";
   const spotsLeft = job.shiftsAvailable - (job.shiftsFilled || 0);
   const isFull = spotsLeft <= 0;
 

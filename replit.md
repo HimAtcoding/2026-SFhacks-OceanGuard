@@ -4,6 +4,10 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Redesigned Food Chain page as interactive 2D underwater scene with canvas-animated ocean, moving organism silhouettes, depth zones, bubbles, kelp forests, climate-reactive backgrounds, and side panel info
+- 2026-02-15: Added cleanup job listings with expand/collapse per operation, role-type icons/colors, certifications, hourly rates, shift hours, and apply forms
+- 2026-02-15: Added cleanup_jobs and job_applications schema tables with 15 seeded positions (Safety Lead $22.50/hr, Drone Operator $28/hr, etc.)
+- 2026-02-15: Fixed Twilio voice consistency: changed fallback <Say> voice from Polly.Joanna to Polly.Amy (British) to match ElevenLabs
 - 2026-02-15: Enhanced Food Chain page with kelp/algae carbon sink section, interactive climate scenario toggles (RCP 2.6/current/RCP 8.5), SVG flowchart arrows between organisms
 - 2026-02-15: Fixed Twilio/ElevenLabs TTS bug: added <Say> voice fallback when ElevenLabs audio buffer is empty or unavailable, preventing "internal server error" playback
 - 2026-02-15: Replaced Education Hub with School Scoreboard (/scoreboard): leaderboard with filters, school profiles, admin action review, 8 seeded schools, 25 actions
