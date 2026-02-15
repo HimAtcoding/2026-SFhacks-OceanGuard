@@ -5,6 +5,7 @@ import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema,
 import { textToSpeechBuffer } from "./elevenlabs";
 import { getOrCreateAgent, initiateOutboundCall, getCallStatus } from "./calling";
 import { getMongoStats, syncToMongo } from "./mongodb";
+import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript } from "./twilio-bridge";
 
 let cachedAgentId: string | null = null;
 
@@ -12,6 +13,7 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  setupTwilioBridge(httpServer);
   app.get("/api/scans", async (req, res) => {
     const since = req.query.since ? new Date(req.query.since as string) : undefined;
     if (since) {
@@ -152,6 +154,11 @@ export async function registerRoutes(
 
       const phoneNumber = req.body.phoneNumber || "19255491150";
 
+      const city = cleanup.cityId
+        ? (await storage.getCities()).find(c => c.id === cleanup.cityId)
+        : null;
+      const cityName = city?.cityName || "";
+
       if (!cachedAgentId) {
         cachedAgentId = await getOrCreateAgent();
       }
@@ -169,15 +176,17 @@ export async function registerRoutes(
           cachedAgentId,
           phoneNumber,
           cleanup.id,
-          cleanup.operationName
+          cleanup.operationName,
+          callLog.id,
+          cityName
         );
 
         await storage.updateCallLog(callLog.id, {
-          status: result.status === "demo_mode" ? "demo_completed" : "initiated",
+          status: result.status === "demo_mode" ? "demo_completed" : "ringing",
           conversationId: result.conversationId,
           result: result.status === "demo_mode"
             ? "Demo mode: Twilio credentials not available. Call simulated successfully."
-            : "Call initiated via Twilio with ElevenLabs AI agent",
+            : "Call initiated - ElevenLabs AI agent connecting via Twilio",
         });
 
         res.json({
@@ -191,21 +200,44 @@ export async function registerRoutes(
         });
       } catch (callErr: any) {
         await storage.updateCallLog(callLog.id, {
-          status: "demo_completed",
-          result: `Demo mode active. ${callErr.message}`,
+          status: "failed",
+          result: `Call failed: ${callErr.message}`,
         });
 
-        res.json({
-          success: true,
+        res.status(500).json({
+          success: false,
           callLogId: callLog.id,
-          status: "demo_completed",
-          message: "Verification call simulated. Connect Twilio for live outbound calls to cleanup sites.",
+          status: "failed",
+          message: `Call failed: ${callErr.message}`,
         });
       }
     } catch (err: any) {
       console.error("Call initiation error:", err.message);
       res.status(500).json({ message: "Call failed", error: err.message });
     }
+  });
+
+  app.get("/api/call-logs/:id/transcript-stream", (req, res) => {
+    const callLogId = req.params.id;
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+
+    const activeCall = getActiveCallTranscript(callLogId);
+    if (activeCall) {
+      for (const entry of activeCall.transcript) {
+        res.write(`data: ${JSON.stringify({ type: "transcript", role: entry.role, text: entry.text, timestamp: entry.timestamp })}\n\n`);
+      }
+    }
+
+    const unsubscribe = subscribeToTranscript(callLogId, (data) => {
+      res.write(`data: ${JSON.stringify(data)}\n\n`);
+    });
+
+    req.on("close", () => {
+      unsubscribe();
+    });
   });
 
   app.get("/api/call-logs", async (req, res) => {

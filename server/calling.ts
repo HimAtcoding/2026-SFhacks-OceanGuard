@@ -1,17 +1,6 @@
 import twilio from "twilio";
 import { getElevenLabsApiKey } from "./elevenlabs";
 
-const CLEANUP_VERIFICATION_PROMPT = `You are an AI assistant from OceanGuard, an ocean health monitoring platform. You are calling to verify the availability and conditions at a marine cleanup site. 
-
-Your goals:
-1. Introduce yourself as calling from OceanGuard's automated cleanup verification system
-2. Ask about current site conditions and accessibility
-3. Confirm if the location is available for a cleanup operation
-4. Ask about any hazards or special equipment needs
-5. Thank them and confirm the information will be logged
-
-Be professional, friendly, and concise. Keep the call under 2 minutes.`;
-
 let cachedAgentId: string | null = null;
 
 export async function createCleanupVerificationAgent(): Promise<string> {
@@ -29,9 +18,9 @@ export async function createCleanupVerificationAgent(): Promise<string> {
       conversation_config: {
         agent: {
           prompt: {
-            prompt: CLEANUP_VERIFICATION_PROMPT,
+            prompt: "You are a verification agent for OceanGuard ocean cleanup operations. Follow the conversation config override for specific details.",
           },
-          first_message: "Hello, this is OceanGuard's automated cleanup verification system. I'm calling to verify the conditions and availability at your marine cleanup location. Could you tell me about the current site conditions?",
+          first_message: "Hello, this is OceanGuard's automated verification system.",
           language: "en",
         },
         tts: {
@@ -56,7 +45,9 @@ export async function initiateOutboundCall(
   agentId: string,
   phoneNumber: string,
   cleanupId: string,
-  operationName: string
+  operationName: string,
+  callLogId: string,
+  cityName: string = ""
 ): Promise<{ conversationId: string; status: string }> {
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
@@ -73,31 +64,38 @@ export async function initiateOutboundCall(
   const formattedTo = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
   const formattedFrom = twilioPhone.startsWith("+") ? twilioPhone : `+${twilioPhone}`;
 
-  let elevenLabsApiKey: string;
-  try {
-    elevenLabsApiKey = await getElevenLabsApiKey();
-  } catch (err: any) {
-    console.error("ElevenLabs API key not available:", err.message);
-    return {
-      conversationId: `demo_${Date.now()}`,
-      status: "demo_mode",
-    };
-  }
+  const serverDomain = process.env.REPLIT_DEV_DOMAIN
+    ? process.env.REPLIT_DEV_DOMAIN
+    : process.env.REPL_SLUG
+    ? `${process.env.REPL_SLUG}.repl.co`
+    : "localhost:5000";
 
   try {
     const client = twilio(twilioSid, twilioToken);
 
-    const twiml = `<Response><Connect><Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}"><Parameter name="xi_api_key" value="${elevenLabsApiKey}" /></Stream></Connect></Response>`;
+    const wsUrl = `wss://${serverDomain}/ws/twilio-stream`;
+
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Connect>
+    <Stream url="${wsUrl}">
+      <Parameter name="cleanupId" value="${cleanupId}" />
+      <Parameter name="operationName" value="${operationName}" />
+      <Parameter name="agentId" value="${agentId}" />
+      <Parameter name="callLogId" value="${callLogId}" />
+      <Parameter name="cityName" value="${cityName}" />
+    </Stream>
+  </Connect>
+</Response>`;
 
     const call = await client.calls.create({
       to: formattedTo,
       from: formattedFrom,
       twiml: twiml,
-      statusCallback: undefined,
       timeout: 60,
     });
 
-    console.log("Twilio call initiated:", call.sid, "to:", formattedTo);
+    console.log("Twilio call initiated:", call.sid, "to:", formattedTo, "for:", operationName);
 
     return {
       conversationId: call.sid,

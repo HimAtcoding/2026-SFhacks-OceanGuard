@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,11 +110,105 @@ function FundingBar({ goal, raised }: { goal: number; raised: number }) {
   );
 }
 
+function LiveTranscript({ callLogId }: { callLogId: string }) {
+  const [entries, setEntries] = useState<Array<{ role: string; text: string; timestamp: number }>>([]);
+  const [callStatus, setCallStatus] = useState<string>("connecting");
+  const [outcome, setOutcome] = useState<string | null>(null);
+  const [duration, setDuration] = useState<number | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const eventSource = new EventSource(`/api/call-logs/${callLogId}/transcript-stream`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "transcript") {
+          setEntries(prev => [...prev, { role: data.role, text: data.text, timestamp: data.timestamp }]);
+          setCallStatus("in_progress");
+        } else if (data.type === "status") {
+          setCallStatus(data.status);
+        } else if (data.type === "completed") {
+          setOutcome(data.outcome);
+          setDuration(data.duration);
+          setCallStatus("completed");
+          eventSource.close();
+        }
+      } catch {}
+    };
+
+    eventSource.onerror = () => {
+      setCallStatus("disconnected");
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, [callLogId]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [entries]);
+
+  const outcomeBadge = outcome === "accepted" ? "default" : outcome === "declined" ? "destructive" : "outline";
+
+  return (
+    <div className="space-y-2 mt-2" data-testid={`live-transcript-${callLogId}`}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          {(callStatus === "in_progress" || callStatus === "connected") && (
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-chart-2 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-chart-2" />
+            </span>
+          )}
+          <span className="text-[10px] font-medium text-muted-foreground">
+            {callStatus === "connecting" ? "Connecting..." : callStatus === "connected" ? "Connected" : callStatus === "in_progress" ? "Live Call" : callStatus === "completed" ? "Call Ended" : "Waiting..."}
+          </span>
+        </div>
+        {duration !== null && (
+          <span className="text-[10px] text-muted-foreground">
+            <Clock className="h-2.5 w-2.5 inline mr-0.5" />{duration}s
+          </span>
+        )}
+      </div>
+
+      {entries.length > 0 && (
+        <div ref={scrollRef} className="max-h-36 overflow-y-auto space-y-1.5 bg-muted rounded-md p-2">
+          {entries.map((entry, i) => (
+            <div key={i} className={`text-[11px] leading-relaxed ${entry.role === "agent" ? "text-primary" : "text-foreground"}`}>
+              <span className="font-semibold">{entry.role === "agent" ? "OceanGuard" : "Recipient"}:</span>{" "}
+              {entry.text}
+            </div>
+          ))}
+          {callStatus === "in_progress" && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              Listening...
+            </div>
+          )}
+        </div>
+      )}
+
+      {outcome && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant={outcomeBadge as any} className="text-[10px]" data-testid={`badge-outcome-${callLogId}`}>
+            {outcome === "accepted" ? "Site Available" : outcome === "declined" ? "Not Available" : outcome === "inconclusive" ? "Needs Follow-up" : "No Response"}
+          </Badge>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CallButton({ cleanupId, operationName }: { cleanupId: string; operationName: string }) {
   const [calling, setCalling] = useState(false);
   const [callResult, setCallResult] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("19255491150");
   const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [activeCallLogId, setActiveCallLogId] = useState<string | null>(null);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
   const { data: callLogs } = useQuery<CallLog[]>({
     queryKey: ["/api/call-logs", cleanupId],
@@ -122,6 +216,7 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
       const res = await fetch(`/api/call-logs?cleanupId=${cleanupId}`);
       return res.json();
     },
+    refetchInterval: activeCallLogId ? 3000 : false,
   });
 
   const callMutation = useMutation({
@@ -134,6 +229,9 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
     onSuccess: (data) => {
       setCallResult(data.message);
       setShowPhoneInput(false);
+      if (data.callLogId && data.status !== "demo_mode") {
+        setActiveCallLogId(data.callLogId);
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/call-logs", cleanupId] });
     },
     onError: (err: any) => {
@@ -154,11 +252,33 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
     }
     setCalling(true);
     setCallResult(null);
+    setActiveCallLogId(null);
     await callMutation.mutateAsync();
     setCalling(false);
   };
 
-  const recentLogs = (callLogs || []).slice(0, 3);
+  const recentLogs = (callLogs || []).slice(0, 5);
+
+  const getStatusIcon = (status: string) => {
+    if (status === "completed") return <CheckCircle className="h-2.5 w-2.5 text-chart-2 shrink-0" />;
+    if (status === "ringing" || status === "in-progress") return <PhoneCall className="h-2.5 w-2.5 text-primary shrink-0 animate-pulse" />;
+    if (status === "failed") return <AlertTriangle className="h-2.5 w-2.5 text-destructive shrink-0" />;
+    return <Phone className="h-2.5 w-2.5 shrink-0" />;
+  };
+
+  const getStatusLabel = (log: CallLog) => {
+    if (log.status === "completed" && log.result) {
+      const r = log.result.toLowerCase();
+      if (r.startsWith("accepted")) return "Verified Available";
+      if (r.startsWith("declined")) return "Not Available";
+      if (r.startsWith("inconclusive")) return "Needs Follow-up";
+      if (r.startsWith("no_response")) return "No Response";
+    }
+    if (log.status === "demo_completed") return "Verified (demo)";
+    if (log.status === "ringing") return "Ringing...";
+    if (log.status === "initiating") return "Initiating...";
+    return log.status;
+  };
 
   return (
     <div className="space-y-2">
@@ -205,13 +325,34 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
           {callResult}
         </p>
       )}
+
+      {activeCallLogId && (
+        <LiveTranscript callLogId={activeCallLogId} />
+      )}
+
       {recentLogs.length > 0 && (
         <div className="space-y-1">
           {recentLogs.map(log => (
-            <div key={log.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <Phone className="h-2.5 w-2.5 shrink-0" />
-              <span className="truncate">{log.status === "demo_completed" ? "Verified (demo)" : log.status}</span>
-              <span className="ml-auto shrink-0">{new Date(log.createdAt).toLocaleTimeString()}</span>
+            <div key={log.id}>
+              <div
+                className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer"
+                onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                data-testid={`call-log-${log.id}`}
+              >
+                {getStatusIcon(log.status)}
+                <span className="truncate">{getStatusLabel(log)}</span>
+                {log.duration && <span className="shrink-0">({log.duration}s)</span>}
+                <span className="ml-auto shrink-0">{new Date(log.createdAt).toLocaleTimeString()}</span>
+              </div>
+              {expandedLogId === log.id && log.transcript && (
+                <div className="mt-1 mb-1 bg-muted rounded-md p-2 max-h-32 overflow-y-auto">
+                  {log.transcript.split("\n").map((line, i) => (
+                    <p key={i} className={`text-[10px] leading-relaxed ${line.startsWith("OceanGuard:") ? "text-primary" : "text-foreground"}`}>
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
