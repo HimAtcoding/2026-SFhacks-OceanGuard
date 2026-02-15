@@ -29,11 +29,7 @@ Let us show you how.
 
 **[Navigate to Tracking tab, click a city like Tokyo or Cape Town]**
 
-We monitor twenty cities around the world. You can see each one on this interactive 3D globe with real-time data -- kelp health, trash levels, quality scores. When you click into a city, the globe zooms in and you get a detailed breakdown of what's happening in that region.
-
-**[Show prediction arcs]**
-
-The key feature here is the prediction engine. It forecasts where debris is going to drift over the next 6, 12, 24, and 48 hours. So cleanup crews don't go where the trash is now -- they go where it's going to be.
+Here we have a general overview of some big cities, taken through real-time data from CNN. We monitor twenty cities around the world. You can see each one on this interactive 3D globe with real-time data -- kelp health, trash levels, quality scores. When you click into a city, the globe zooms in and you get a detailed breakdown of what's happening in that region.Green pulsing rings are kelp forests -- healthy ecosystems acting as carbon sinks. Red rings are trash concentration zones. You can see animated ocean currents showing flow direction, topographic terrain data, and ecosystem markers for things like marine protected areas, coral reefs, and shipping corridors.
 
 ---
 

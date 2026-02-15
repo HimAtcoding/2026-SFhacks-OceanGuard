@@ -88,11 +88,7 @@ export default function Landing() {
               <span className="text-primary">Ecosystems</span>{" "}
               With Real-Time Data
             </h1>
-            <p className="text-lg md:text-xl text-white/80 mb-8 max-w-2xl leading-relaxed">
-              Autonomous drone surveillance that continuously monitors ocean environments,
-              detects harmful algae blooms, tracks water quality, and generates
-              AI-powered environmental impact reports.
-            </p>
+            <p className="text-lg md:text-xl text-white/80 mb-8 max-w-2xl leading-relaxed">Helping our planet recover from climate change through live scan data, planned cleanups, & community engagement. </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/dashboard">
                 <Button data-testid="button-view-dashboard" className="gap-2">
@@ -108,7 +104,6 @@ export default function Landing() {
           </motion.div>
         </div>
       </div>
-
       <section className="py-16 border-b border-border">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div
@@ -133,7 +128,6 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
-
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div
@@ -188,7 +182,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       <section className="py-20 bg-card/50">
         <div className="max-w-6xl mx-auto px-6">
           <motion.div
@@ -255,7 +248,6 @@ export default function Landing() {
           </motion.div>
         </div>
       </section>
-
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -294,7 +286,6 @@ export default function Landing() {
           </div>
         </div>
       </section>
-
       <section className="py-16 border-t border-border">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-sm text-muted-foreground">
