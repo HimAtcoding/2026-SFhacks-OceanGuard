@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { db } from "./db";
-import { droneScans, alerts } from "@shared/schema";
-import { desc } from "drizzle-orm";
+import { droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations } from "@shared/schema";
+import { desc, gte } from "drizzle-orm";
 
 const GEMINI_API_KEY = process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
 const GEMINI_BASE_URL = process.env.AI_INTEGRATIONS_GEMINI_BASE_URL;
@@ -32,8 +32,16 @@ async function getFullDataContext(): Promise<string> {
     };
   });
 
+  const allCities = await db.select().from(cityMonitors);
+  const allCleanups = await db.select().from(cleanupOperations).orderBy(desc(cleanupOperations.startDate)).limit(30);
+
+  const avgKelp = allCities.length > 0 ? (allCities.reduce((s, c) => s + c.kelpDensity, 0) / allCities.length).toFixed(1) : "0";
+  const avgTrash = allCities.length > 0 ? (allCities.reduce((s, c) => s + c.trashLevel, 0) / allCities.length).toFixed(1) : "0";
+  const avgCityScore = allCities.length > 0 ? (allCities.reduce((s, c) => s + c.overallScore, 0) / allCities.length).toFixed(0) : "0";
+  const totalTrashCollected = allCleanups.reduce((s, o) => s + (o.trashCollected || 0), 0);
+
   return `
-OCEAN MONITORING DATA SUMMARY:
+OCEAN MONITORING DATA SUMMARY (Data since Feb 14, 2025):
 - Total drone scans: ${totalScans}
 - Monitoring zones: ${zones.length} (${zones.join(", ")})
 - Overall avg algae level: ${avgAlgae.toFixed(1)}%
@@ -41,6 +49,16 @@ OCEAN MONITORING DATA SUMMARY:
 - Overall avg greenery index (NDVI): ${avgGreenery.toFixed(3)}
 - Active alerts: ${activeAlerts.length}
 - Critical alerts: ${activeAlerts.filter(a => a.severity === "critical").length}
+
+GLOBAL CITY MONITORING (${allCities.length} cities):
+- Average kelp density: ${avgKelp}%
+- Average trash level: ${avgTrash}%
+- Average city ocean score: ${avgCityScore}/100
+- Total trash collected from cleanup operations: ${totalTrashCollected.toFixed(0)} kg
+- Cleanup operations: ${allCleanups.length} total (${allCleanups.filter(o => o.status === "completed").length} completed, ${allCleanups.filter(o => o.status === "in-progress").length} in progress)
+
+CITY-BY-CITY DATA:
+${allCities.map(c => `  ${c.cityName}, ${c.country}: Kelp ${c.kelpDensity.toFixed(1)}% (${c.kelpHealthRating}), Trash ${c.trashLevel.toFixed(1)}% (${c.trashRating}), Score ${c.overallScore.toFixed(0)}/100, Temp ${c.waterTemp?.toFixed(1) || "N/A"}C`).join("\n")}
 
 ZONE-BY-ZONE DATA:
 ${zoneData.map(z => `  ${z.zone}: ${z.count} scans, Algae ${z.avgAlgae}%, Quality ${z.avgQuality}%, NDVI ${z.avgNDVI}, pH ${z.avgPh}, DO ${z.avgDO} mg/L, Turbidity ${z.avgTurb} NTU, Temp ${z.avgTemp}C`).join("\n")}
@@ -50,6 +68,9 @@ ${allScans.slice(0, 10).map(s => `  ${s.scanName} @ ${s.location}: Algae ${s.alg
 
 ACTIVE ALERTS:
 ${activeAlerts.map(a => `  [${a.severity.toUpperCase()}] ${a.type}: ${a.message}`).join("\n") || "  No active alerts"}
+
+RECENT CLEANUP OPERATIONS:
+${allCleanups.slice(0, 10).map(o => `  ${o.operationName}: ${o.status}, ${(o.trashCollected || 0).toFixed(0)} kg collected, ${(o.areaCleanedKm2 || 0).toFixed(1)} km2 cleaned, ${o.dronesDeployed || 0} drones`).join("\n")}
 `;
 }
 
@@ -105,6 +126,19 @@ Structure your report with:
 7. **Conservation Recommendations** - Priority actions for vegetation protection
 
 Use NDVI scale interpretation (0-0.2 barren, 0.2-0.4 sparse, 0.4-0.6 moderate, 0.6-0.8 dense, 0.8-1.0 very dense).`,
+
+  "kelp-trash-analysis": `You are a marine ecosystem analyst specializing in kelp forest health and ocean debris tracking. Generate a comprehensive Global Kelp & Trash Analysis report.
+
+Structure your report with:
+1. **Global Overview** - Summary of kelp and trash conditions across all monitored cities
+2. **City Rankings** - Top performing and worst performing cities for kelp health and trash management
+3. **Kelp Forest Health** - Detailed kelp density analysis by region with health ratings
+4. **Marine Debris Assessment** - Trash level patterns, hotspots, and trends since Feb 2025
+5. **Cleanup Impact** - How cleanup operations have affected trash levels in key cities
+6. **Correlation Analysis** - Relationship between kelp health and trash levels
+7. **Priority Recommendations** - Cities needing immediate attention and suggested interventions
+
+Use specific city-by-city data. Compare regions (Pacific, Atlantic, Indian Ocean, etc.).`,
 
   "custom": `You are an expert environmental data analyst. Analyze the provided ocean monitoring data according to the user's specific request.
 

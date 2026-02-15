@@ -13,6 +13,8 @@ import Technology from "@/pages/technology";
 import Reports from "@/pages/reports";
 import CarbonCredits from "@/pages/carbon";
 import Analytics from "@/pages/analytics";
+import Tracking from "@/pages/tracking";
+import Cleanup from "@/pages/cleanup";
 import { Chatbot } from "@/components/chatbot";
 
 function Router() {
@@ -20,6 +22,8 @@ function Router() {
     <Switch>
       <Route path="/" component={Landing} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/tracking" component={Tracking} />
+      <Route path="/cleanup" component={Cleanup} />
       <Route path="/reports" component={Reports} />
       <Route path="/carbon" component={CarbonCredits} />
       <Route path="/analytics" component={Analytics} />

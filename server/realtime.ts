@@ -117,6 +117,7 @@ export async function generateRealtimeScan() {
 }
 
 let intervalId: NodeJS.Timeout | null = null;
+let globalIntervalId: NodeJS.Timeout | null = null;
 
 export function startRealtimeEngine() {
   if (intervalId) return;
@@ -134,9 +135,28 @@ export function startRealtimeEngine() {
   log("Real-time scan engine started (every 30s)");
 }
 
+export function startGlobalTrackingEngine() {
+  if (globalIntervalId) return;
+
+  globalIntervalId = setInterval(async () => {
+    try {
+      const { updateGlobalTracking } = await import("./globalSeed");
+      await updateGlobalTracking();
+    } catch (err) {
+      console.error("Global tracking update error:", err);
+    }
+  }, 60000);
+
+  log("Global tracking engine started (every 60s)");
+}
+
 export function stopRealtimeEngine() {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
+  }
+  if (globalIntervalId) {
+    clearInterval(globalIntervalId);
+    globalIntervalId = null;
   }
 }

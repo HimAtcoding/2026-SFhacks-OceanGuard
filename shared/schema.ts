@@ -52,6 +52,48 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const cityMonitors = pgTable("city_monitors", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cityName: text("city_name").notNull(),
+  country: text("country").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  kelpDensity: real("kelp_density").notNull(),
+  kelpHealthRating: text("kelp_health_rating").notNull(),
+  trashLevel: real("trash_level").notNull(),
+  trashRating: text("trash_rating").notNull(),
+  overallScore: real("overall_score").notNull(),
+  waterTemp: real("water_temp"),
+  currentSpeed: real("current_speed"),
+  lastUpdated: timestamp("last_updated").defaultNow().notNull(),
+});
+
+export const kelpTrashTracks = pgTable("kelp_trash_tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cityId: varchar("city_id").references(() => cityMonitors.id),
+  trackType: text("track_type").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  density: real("density").notNull(),
+  movementDirection: real("movement_direction"),
+  speed: real("speed"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+});
+
+export const cleanupOperations = pgTable("cleanup_operations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cityId: varchar("city_id").references(() => cityMonitors.id),
+  operationName: text("operation_name").notNull(),
+  status: text("status").notNull().default("planned"),
+  priority: text("priority").notNull().default("medium"),
+  trashCollected: real("trash_collected").default(0),
+  areaCleanedKm2: real("area_cleaned_km2").default(0),
+  dronesDeployed: integer("drones_deployed").default(0),
+  startDate: timestamp("start_date").defaultNow().notNull(),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -77,6 +119,21 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   createdAt: true,
 });
 
+export const insertCityMonitorSchema = createInsertSchema(cityMonitors).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertKelpTrashTrackSchema = createInsertSchema(kelpTrashTracks).omit({
+  id: true,
+  timestamp: true,
+});
+
+export const insertCleanupOperationSchema = createInsertSchema(cleanupOperations).omit({
+  id: true,
+  startDate: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertDroneScan = z.infer<typeof insertDroneScanSchema>;
@@ -87,3 +144,9 @@ export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type CityMonitor = typeof cityMonitors.$inferSelect;
+export type InsertCityMonitor = z.infer<typeof insertCityMonitorSchema>;
+export type KelpTrashTrack = typeof kelpTrashTracks.$inferSelect;
+export type InsertKelpTrashTrack = z.infer<typeof insertKelpTrashTrackSchema>;
+export type CleanupOperation = typeof cleanupOperations.$inferSelect;
+export type InsertCleanupOperation = z.infer<typeof insertCleanupOperationSchema>;

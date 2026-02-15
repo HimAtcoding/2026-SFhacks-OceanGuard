@@ -16,6 +16,9 @@ import {
   Droplets,
   Leaf,
   RefreshCw,
+  Trash2,
+  Globe,
+  Calendar,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
@@ -95,7 +98,7 @@ export default function Reports() {
       id: "environmental-impact",
       icon: TrendingUp,
       title: "Environmental Impact Assessment",
-      description: "Comprehensive analysis of ocean health trends, ecological risk factors, and conservation recommendations.",
+      description: "Comprehensive analysis of ocean health trends, ecological risk factors, and conservation recommendations across 20+ cities.",
     },
     {
       id: "water-quality",
@@ -112,8 +115,14 @@ export default function Reports() {
     {
       id: "vegetation-health",
       icon: Leaf,
-      title: "Vegetation Health Report",
-      description: "NDVI-based assessment of coastal and marine vegetation with seasonal comparison data.",
+      title: "Vegetation & Kelp Health Report",
+      description: "NDVI-based assessment plus global kelp density analysis with city-by-city health ratings.",
+    },
+    {
+      id: "kelp-trash-analysis",
+      icon: Globe,
+      title: "Global Kelp & Trash Analysis",
+      description: "Worldwide kelp density vs trash level analysis across all monitored coastal cities with cleanup impact assessment.",
     },
   ];
 
@@ -131,6 +140,10 @@ export default function Reports() {
           <p className="text-sm text-muted-foreground">
             Generate AI-powered environmental analysis reports from {totalScans} drone scans &middot; Avg water quality: {avgQuality}%
           </p>
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Historical data range: Feb 14, 2025 &ndash; Present</span>
+          </div>
         </div>
       </div>
 

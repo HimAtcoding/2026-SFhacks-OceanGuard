@@ -19,11 +19,15 @@ import {
   Waves,
   Coins,
   Activity,
+  Globe,
+  Trash2,
 } from "lucide-react";
 
 const navItems = [
   { title: "Home", url: "/", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Global Tracking", url: "/tracking", icon: Globe },
+  { title: "Cleanup", url: "/cleanup", icon: Trash2 },
   { title: "AI Reports", url: "/reports", icon: FileText },
   { title: "Carbon Credits", url: "/carbon", icon: Coins },
   { title: "Analytics", url: "/analytics", icon: Activity },

@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { registerChatbotRoutes } from "./chatbot";
 import { registerReportRoutes } from "./reports";
-import { startRealtimeEngine } from "./realtime";
+import { startRealtimeEngine, startGlobalTrackingEngine } from "./realtime";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 
@@ -66,10 +66,14 @@ app.use((req, res, next) => {
   const { seedDatabase } = await import("./seed");
   await seedDatabase().catch((err) => console.error("Seed error:", err));
 
+  const { seedGlobalData } = await import("./globalSeed");
+  await seedGlobalData().catch((err) => console.error("Global seed error:", err));
+
   await registerRoutes(httpServer, app);
   registerChatbotRoutes(app);
   registerReportRoutes(app);
   startRealtimeEngine();
+  startGlobalTrackingEngine();
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
