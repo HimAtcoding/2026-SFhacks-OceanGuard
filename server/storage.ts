@@ -8,10 +8,13 @@ import {
   type Donation, type InsertDonation,
   type CallLog, type InsertCallLog,
   type AppSetting,
+  type School, type InsertSchool,
+  type SchoolAction, type InsertSchoolAction,
   users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations, donations, callLogs, appSettings,
+  schools, schoolActions,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { eq, desc, gte, and, sum, sql } from "drizzle-orm";
 import { syncToMongo } from "./mongodb";
 
 export interface IStorage {
@@ -46,6 +49,13 @@ export interface IStorage {
   updateCallLog(id: string, data: Partial<InsertCallLog>): Promise<CallLog | undefined>;
   getSetting(key: string): Promise<AppSetting | undefined>;
   setSetting(key: string, value: string): Promise<AppSetting>;
+  getSchools(): Promise<School[]>;
+  getSchool(id: string): Promise<School | undefined>;
+  createSchool(school: InsertSchool): Promise<School>;
+  getSchoolActions(schoolId?: string, status?: string): Promise<SchoolAction[]>;
+  createSchoolAction(action: InsertSchoolAction): Promise<SchoolAction>;
+  reviewSchoolAction(id: string, status: "APPROVED" | "REJECTED"): Promise<SchoolAction | undefined>;
+  getLeaderboard(period?: "weekly" | "alltime", cityId?: string, schoolType?: string): Promise<Array<{ school: School; totalPoints: number; weeklyPoints: number; actionCount: number }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -223,6 +233,84 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(appSettings).values({ key, value }).returning();
     return created;
+  }
+
+  async getSchools(): Promise<School[]> {
+    return db.select().from(schools).orderBy(desc(schools.createdAt));
+  }
+
+  async getSchool(id: string): Promise<School | undefined> {
+    const [school] = await db.select().from(schools).where(eq(schools.id, id));
+    return school;
+  }
+
+  async createSchool(school: InsertSchool): Promise<School> {
+    const [newSchool] = await db.insert(schools).values(school).returning();
+    return newSchool;
+  }
+
+  async getSchoolActions(schoolId?: string, status?: string): Promise<SchoolAction[]> {
+    if (schoolId && status) {
+      return db.select().from(schoolActions)
+        .where(and(eq(schoolActions.schoolId, schoolId), eq(schoolActions.status, status)))
+        .orderBy(desc(schoolActions.createdAt));
+    }
+    if (schoolId) {
+      return db.select().from(schoolActions)
+        .where(eq(schoolActions.schoolId, schoolId))
+        .orderBy(desc(schoolActions.createdAt));
+    }
+    if (status) {
+      return db.select().from(schoolActions)
+        .where(eq(schoolActions.status, status))
+        .orderBy(desc(schoolActions.createdAt));
+    }
+    return db.select().from(schoolActions).orderBy(desc(schoolActions.createdAt));
+  }
+
+  async createSchoolAction(action: InsertSchoolAction): Promise<SchoolAction> {
+    const [newAction] = await db.insert(schoolActions).values(action).returning();
+    return newAction;
+  }
+
+  async reviewSchoolAction(id: string, status: "APPROVED" | "REJECTED"): Promise<SchoolAction | undefined> {
+    const [updated] = await db.update(schoolActions)
+      .set({ status, reviewedAt: new Date() } as any)
+      .where(eq(schoolActions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async getLeaderboard(
+    period: "weekly" | "alltime" = "alltime",
+    cityId?: string,
+    schoolType?: string
+  ): Promise<Array<{ school: School; totalPoints: number; weeklyPoints: number; actionCount: number }>> {
+    const allSchools = await this.getSchools();
+    const approvedActions = await this.getSchoolActions(undefined, "APPROVED");
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const leaderboard = allSchools
+      .filter(s => {
+        if (cityId && s.adoptedCityId !== cityId) return false;
+        if (schoolType && s.type !== schoolType) return false;
+        return true;
+      })
+      .map(school => {
+        const schoolApproved = approvedActions.filter(a => a.schoolId === school.id);
+        const totalPoints = schoolApproved.reduce((sum, a) => sum + (a.pointsAwarded || 0), 0);
+        const weeklyPoints = schoolApproved
+          .filter(a => new Date(a.createdAt) >= oneWeekAgo)
+          .reduce((sum, a) => sum + (a.pointsAwarded || 0), 0);
+        return { school, totalPoints, weeklyPoints, actionCount: schoolApproved.length };
+      });
+
+    leaderboard.sort((a, b) => {
+      if (period === "weekly") return b.weeklyPoints - a.weeklyPoints;
+      return b.totalPoints - a.totalPoints;
+    });
+
+    return leaderboard;
   }
 }
 

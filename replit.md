@@ -4,6 +4,10 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Enhanced Food Chain page with kelp/algae carbon sink section, interactive climate scenario toggles (RCP 2.6/current/RCP 8.5), SVG flowchart arrows between organisms
+- 2026-02-15: Fixed Twilio/ElevenLabs TTS bug: added <Say> voice fallback when ElevenLabs audio buffer is empty or unavailable, preventing "internal server error" playback
+- 2026-02-15: Replaced Education Hub with School Scoreboard (/scoreboard): leaderboard with filters, school profiles, admin action review, 8 seeded schools, 25 actions
+- 2026-02-15: Added schools + school_actions database tables with points system (Classroom Mission 50pts, Cleanup Event 200+2/kg, Donation 1$/pt, Awareness 75pts)
 - 2026-02-15: Added interactive Ocean Food Chain page (/food-chain) with clickable organisms, trophic cascade visualization, climate impact explanations, and oxygen production connection
 - 2026-02-15: Added Snowflake Cortex AI integration (server/snowflake.ts) with LLM-powered ocean data analysis on Analytics page
 - 2026-02-15: Rewrote call verification system: Snowflake Cortex AI generates conversational responses, ElevenLabs provides TTS, Twilio handles calls + speech recognition via webhooks
@@ -14,7 +18,6 @@ AI-powered drone ocean health monitoring platform. Features real-time dashboard 
 - 2026-02-15: Added funding goals (fundingGoal, fundingRaised) to cleanup operations with GoFundMe-style progress bars
 - 2026-02-15: Donations can link to specific cleanups via cleanupId, auto-updates fundingRaised
 - 2026-02-15: Added call_logs database table for tracking verification call status and transcripts
-- 2026-02-15: Created Sustainability Education page (/education) with K-12 lesson plans, college modules, live data explorer, API access
 - 2026-02-15: Built ExecuTorch on-device AI showcase page (/edge-ai) with live inference simulator and 4 edge models
 - 2026-02-15: Replaced 2D Leaflet map with interactive 3D globe (react-globe.gl) on tracking page
 - 2026-02-15: Added kelp/trash movement predictions (6h/12h/24h/48h) with animated arcs on globe
@@ -57,8 +60,10 @@ AI-powered drone ocean health monitoring platform. Features real-time dashboard 
 5. `/reports` - AI-powered environmental reports (Gemini streaming) with date range, kelp/trash analysis
 6. `/carbon` - Carbon credit tracking with transaction ledger and accumulation chart
 7. `/analytics` - Deep analytics with radar chart, zone comparison, sensor trends
-8. `/food-chain` - Interactive ocean food chain with clickable organisms, trophic cascade, climate impact, oxygen production
+8. `/food-chain` - Interactive ocean food chain with clickable organisms, trophic cascade, climate impact, carbon sink, climate scenarios
 9. `/technology` - Hardware, software, AI/ML, and integrations tech stack
+10. `/scoreboard` - School Scoreboard with leaderboard, filters, school profiles, admin review
+11. `/scoreboard/admin` - Admin review interface for pending school actions
 
 ## Key Components
 - `client/src/components/chatbot.tsx` - Floating AI chatbot (GreenBot)

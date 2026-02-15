@@ -126,6 +126,31 @@ export const appSettings = pgTable("app_settings", {
   value: text("value").notNull(),
 });
 
+export const schools = pgTable("schools", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  location: text("location"),
+  adoptedCityId: varchar("adopted_city_id").references(() => cityMonitors.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const schoolActions = pgTable("school_actions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  schoolId: varchar("school_id").references(() => schools.id).notNull(),
+  actionType: text("action_type").notNull(),
+  cityId: varchar("city_id").references(() => cityMonitors.id),
+  description: text("description").notNull(),
+  evidenceUrl: text("evidence_url"),
+  solanaTxSig: text("solana_tx_sig"),
+  kgTrashRemoved: real("kg_trash_removed"),
+  donationUsd: real("donation_usd"),
+  status: text("status").notNull().default("PENDING"),
+  pointsAwarded: real("points_awarded").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  reviewedAt: timestamp("reviewed_at"),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -176,6 +201,17 @@ export const insertCallLogSchema = createInsertSchema(callLogs).omit({
   createdAt: true,
 });
 
+export const insertSchoolSchema = createInsertSchema(schools).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSchoolActionSchema = createInsertSchema(schoolActions).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertDroneScan = z.infer<typeof insertDroneScanSchema>;
@@ -197,3 +233,7 @@ export type InsertDonation = z.infer<typeof insertDonationSchema>;
 export type CallLog = typeof callLogs.$inferSelect;
 export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
 export type AppSetting = typeof appSettings.$inferSelect;
+export type School = typeof schools.$inferSelect;
+export type InsertSchool = z.infer<typeof insertSchoolSchema>;
+export type SchoolAction = typeof schoolActions.$inferSelect;
+export type InsertSchoolAction = z.infer<typeof insertSchoolActionSchema>;

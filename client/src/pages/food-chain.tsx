@@ -14,7 +14,56 @@ import {
   Droplets,
   Leaf,
   Info,
+  TreePine,
+  Waves,
+  Gauge,
 } from "lucide-react";
+
+type ClimateScenario = "current" | "optimistic" | "pessimistic";
+
+interface ScenarioModifiers {
+  label: string;
+  description: string;
+  tempChange: string;
+  phytoChange: number;
+  kelpChange: number;
+  oxygenImpact: string;
+  co2Absorbed: string;
+  cascadeIntensity: number;
+}
+
+const SCENARIOS: Record<ClimateScenario, ScenarioModifiers> = {
+  current: {
+    label: "Current Trajectory",
+    description: "Business as usual: moderate warming continues, no major policy changes",
+    tempChange: "+1.1\u00b0C",
+    phytoChange: -40,
+    kelpChange: -50,
+    oxygenImpact: "50-80% of Earth's oxygen at slow decline",
+    co2Absorbed: "10B tons/yr",
+    cascadeIntensity: 50,
+  },
+  optimistic: {
+    label: "Strong Action (RCP 2.6)",
+    description: "Global emissions halved by 2030, carbon removal at scale, marine protected areas expanded",
+    tempChange: "+1.5\u00b0C by 2100",
+    phytoChange: -15,
+    kelpChange: -10,
+    oxygenImpact: "Recovery possible with intervention",
+    co2Absorbed: "12B tons/yr (with kelp restoration)",
+    cascadeIntensity: 20,
+  },
+  pessimistic: {
+    label: "Worst Case (RCP 8.5)",
+    description: "Emissions continue rising, ocean temperatures increase 3-5\u00b0C, mass acidification",
+    tempChange: "+4.5\u00b0C by 2100",
+    phytoChange: -70,
+    kelpChange: -90,
+    oxygenImpact: "Severe oxygen production loss, dead zones expand 10x",
+    co2Absorbed: "4B tons/yr (ecosystem collapse)",
+    cascadeIntensity: 95,
+  },
+};
 
 interface Organism {
   id: string;
@@ -241,17 +290,6 @@ function OrganismIcon({ id, size = 40 }: { id: string; size?: number }) {
   );
 }
 
-function CascadeArrow({ from, to }: { from: string; to: string }) {
-  return (
-    <div className="flex flex-col items-center py-1">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <ArrowDown className="h-4 w-4 text-destructive animate-pulse" />
-        <span className="text-[10px]">disrupts</span>
-        <ArrowDown className="h-4 w-4 text-destructive animate-pulse" />
-      </div>
-    </div>
-  );
-}
 
 function OrganismDetail({ organism, onClose }: { organism: Organism; onClose: () => void }) {
   return (
@@ -529,20 +567,224 @@ function OxygenSection() {
           zooplankton grazing, which allows phytoplankton to thrive and produce oxygen. Remove
           the sharks, and you begin dismantling the system that lets us breathe.
         </p>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Additionally, kelp forests — which OceanGuard monitors globally — absorb 20 times
-          more CO2 per acre than terrestrial forests. They provide nursery habitat for thousands
-          of species and protect coastlines from storm surges. Climate change and urchin
-          overgrazing (another consequence of predator loss) have destroyed over 90% of kelp
-          forests in some regions.
+      </div>
+    </Card>
+  );
+}
+
+function CarbonSinkSection() {
+  return (
+    <Card className="p-4 space-y-4" data-testid="section-carbon-sink">
+      <div className="flex items-center gap-2">
+        <TreePine className="h-5 w-5 text-chart-2" />
+        <h3 className="text-sm font-semibold text-foreground">Kelp & Algae: The Ocean's Carbon Sink</h3>
+      </div>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Kelp forests and marine algae are among the most powerful carbon capture systems on the planet.
+        They sequester carbon 20x faster than terrestrial forests per unit area and provide critical
+        habitat for thousands of marine species. OceanGuard monitors kelp density across 20 global cities.
+      </p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="p-3 rounded-md bg-chart-2/10 text-center">
+          <Waves className="h-4 w-4 text-chart-2 mx-auto mb-1" />
+          <p className="text-sm font-bold text-foreground">20x</p>
+          <p className="text-[9px] text-muted-foreground">More CO2 absorbed per acre than forests</p>
+        </div>
+        <div className="p-3 rounded-md bg-chart-3/10 text-center">
+          <Leaf className="h-4 w-4 text-chart-3 mx-auto mb-1" />
+          <p className="text-sm font-bold text-foreground">173M</p>
+          <p className="text-[9px] text-muted-foreground">Metric tons of CO2 captured by kelp forests annually</p>
+        </div>
+        <div className="p-3 rounded-md bg-chart-1/10 text-center">
+          <Thermometer className="h-4 w-4 text-chart-1 mx-auto mb-1" />
+          <p className="text-sm font-bold text-foreground">-50%</p>
+          <p className="text-[9px] text-muted-foreground">Of global kelp forests lost since 1950</p>
+        </div>
+        <div className="p-3 rounded-md bg-primary/10 text-center">
+          <Droplets className="h-4 w-4 text-primary mx-auto mb-1" />
+          <p className="text-sm font-bold text-foreground">800+</p>
+          <p className="text-[9px] text-muted-foreground">Species depend on kelp forest habitats</p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h4 className="text-xs font-semibold text-foreground">How Kelp Sequesters Carbon</h4>
+        <div className="flex flex-col gap-1.5">
+          {[
+            { step: "Photosynthesis", detail: "Kelp absorbs dissolved CO2 from seawater and converts it to organic carbon through photosynthesis, growing up to 60cm per day" },
+            { step: "Biomass Storage", detail: "Carbon is locked in kelp tissue. A mature kelp forest stores 5-20 kg of carbon per square meter" },
+            { step: "Detrital Export", detail: "When kelp dies or sheds blades, organic carbon sinks to the deep ocean floor where it can remain sequestered for centuries" },
+            { step: "Sediment Burial", detail: "A portion of kelp-derived carbon becomes permanently buried in marine sediments, removing it from the carbon cycle for millennia" },
+          ].map((item, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <div className="flex flex-col items-center shrink-0">
+                <div className="w-5 h-5 rounded-full bg-chart-2/20 flex items-center justify-center">
+                  <span className="text-[9px] font-bold text-chart-2">{i + 1}</span>
+                </div>
+                {i < 3 && <div className="w-px h-3 bg-chart-2/30" />}
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold text-foreground">{item.step}</p>
+                <p className="text-[10px] text-muted-foreground">{item.detail}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="p-3 rounded-md bg-muted/50 space-y-1.5">
+        <h4 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+          <AlertTriangle className="h-3 w-3 text-destructive" />
+          The Urchin Barren Problem
+        </h4>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          When apex predators like sea otters and certain fish decline, sea urchin populations explode unchecked.
+          Urchins devour kelp holdfasts, creating barren underwater deserts called "urchin barrens." In Northern
+          California, 95% of bull kelp forests have been replaced by urchin barrens since 2014 — a direct
+          consequence of trophic cascade from predator loss. This eliminates the carbon sink, destroys habitat,
+          and accelerates ocean warming in a devastating feedback loop.
         </p>
       </div>
     </Card>
   );
 }
 
+function ClimateScenarioToggle({ scenario, onChange }: { scenario: ClimateScenario; onChange: (s: ClimateScenario) => void }) {
+  const s = SCENARIOS[scenario];
+
+  return (
+    <Card className="p-4 space-y-4" data-testid="section-climate-scenarios">
+      <div className="flex items-center gap-2">
+        <Gauge className="h-5 w-5 text-chart-4" />
+        <h3 className="text-sm font-semibold text-foreground">Climate Scenario Explorer</h3>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Toggle between climate scenarios to see how different emission pathways affect the ocean food chain and carbon cycle.
+      </p>
+
+      <div className="flex gap-2 flex-wrap">
+        <Button
+          variant={scenario === "optimistic" ? "default" : "outline"}
+          onClick={() => onChange("optimistic")}
+          data-testid="button-scenario-optimistic"
+        >
+          <Leaf className="h-3.5 w-3.5 mr-1" />
+          Strong Action
+        </Button>
+        <Button
+          variant={scenario === "current" ? "default" : "outline"}
+          onClick={() => onChange("current")}
+          data-testid="button-scenario-current"
+        >
+          <TrendingDown className="h-3.5 w-3.5 mr-1" />
+          Current Path
+        </Button>
+        <Button
+          variant={scenario === "pessimistic" ? "default" : "outline"}
+          onClick={() => onChange("pessimistic")}
+          data-testid="button-scenario-pessimistic"
+        >
+          <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+          Worst Case
+        </Button>
+      </div>
+
+      <motion.div
+        key={scenario}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.25 }}
+        className="space-y-3"
+      >
+        <div className="p-3 rounded-md bg-muted/50">
+          <p className="text-xs font-semibold text-foreground mb-0.5">{s.label}</p>
+          <p className="text-[10px] text-muted-foreground">{s.description}</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="space-y-1 text-center">
+            <Thermometer className="h-4 w-4 text-destructive mx-auto" />
+            <p className="text-sm font-bold text-foreground">{s.tempChange}</p>
+            <p className="text-[9px] text-muted-foreground">Temperature Rise</p>
+          </div>
+          <div className="space-y-1 text-center">
+            <Droplets className="h-4 w-4 text-chart-3 mx-auto" />
+            <p className="text-sm font-bold" style={{ color: s.phytoChange < -50 ? "hsl(var(--destructive))" : s.phytoChange > -20 ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))" }}>
+              {s.phytoChange}%
+            </p>
+            <p className="text-[9px] text-muted-foreground">Phytoplankton Change</p>
+          </div>
+          <div className="space-y-1 text-center">
+            <Leaf className="h-4 w-4 text-chart-2 mx-auto" />
+            <p className="text-sm font-bold" style={{ color: s.kelpChange < -50 ? "hsl(var(--destructive))" : s.kelpChange > -20 ? "hsl(var(--chart-2))" : "hsl(var(--chart-1))" }}>
+              {s.kelpChange}%
+            </p>
+            <p className="text-[9px] text-muted-foreground">Kelp Forest Change</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div>
+            <p className="text-[10px] text-muted-foreground">Cascade Intensity</p>
+            <div className="w-full h-2 bg-muted rounded-full overflow-hidden mt-1">
+              <motion.div
+                className="h-full rounded-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${s.cascadeIntensity}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                style={{
+                  backgroundColor: s.cascadeIntensity > 70 ? "hsl(var(--destructive))" : s.cascadeIntensity > 40 ? "hsl(var(--chart-1))" : "hsl(var(--chart-2))",
+                }}
+              />
+            </div>
+            <p className="text-[9px] text-muted-foreground mt-0.5">{s.cascadeIntensity}% — {s.cascadeIntensity > 70 ? "Severe ecosystem disruption" : s.cascadeIntensity > 40 ? "Moderate food chain stress" : "Manageable with intervention"}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="p-2 rounded-md bg-muted/30">
+              <p className="text-[10px] text-muted-foreground">Oxygen Impact</p>
+              <p className="text-[11px] font-medium text-foreground">{s.oxygenImpact}</p>
+            </div>
+            <div className="p-2 rounded-md bg-muted/30">
+              <p className="text-[10px] text-muted-foreground">CO2 Absorption</p>
+              <p className="text-[11px] font-medium text-foreground">{s.co2Absorbed}</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </Card>
+  );
+}
+
+function FlowchartArrow({ from, to }: { from: string; to: string }) {
+  return (
+    <div className="flex items-center justify-center py-1" data-testid={`arrow-${from}-to-${to}`}>
+      <svg width="40" height="24" viewBox="0 0 40 24" className="text-muted-foreground">
+        <defs>
+          <marker id={`arrowhead-${from}`} markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+            <polygon points="0 0, 6 2, 0 4" fill="currentColor" opacity="0.5" />
+          </marker>
+        </defs>
+        <line x1="20" y1="2" x2="20" y2="18" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.4" markerEnd={`url(#arrowhead-${from})`} />
+      </svg>
+      <span className="text-[9px] text-muted-foreground/60 -ml-1">energy</span>
+      <svg width="40" height="24" viewBox="0 0 40 24" className="text-destructive">
+        <defs>
+          <marker id={`arrowhead-d-${from}`} markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">
+            <polygon points="0 0, 6 2, 0 4" fill="currentColor" opacity="0.4" />
+          </marker>
+        </defs>
+        <line x1="20" y1="2" x2="20" y2="18" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 2" opacity="0.3" markerEnd={`url(#arrowhead-d-${from})`} />
+      </svg>
+    </div>
+  );
+}
+
 export default function FoodChainPage() {
   const [selectedOrganism, setSelectedOrganism] = useState<string | null>(null);
+  const [scenario, setScenario] = useState<ClimateScenario>("current");
 
   const selected = organisms.find((o) => o.id === selectedOrganism);
 
@@ -561,7 +803,7 @@ export default function FoodChainPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
-        <div className="lg:col-span-2 space-y-1.5">
+        <div className="lg:col-span-2 space-y-0">
           <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Interactive Food Chain — Click to Explore
           </h2>
@@ -575,7 +817,7 @@ export default function FoodChainPage() {
                 }
               />
               {i < organisms.length - 1 && (
-                <CascadeArrow from={org.id} to={organisms[i + 1].id} />
+                <FlowchartArrow from={org.id} to={organisms[i + 1].id} />
               )}
             </div>
           ))}
@@ -612,6 +854,8 @@ export default function FoodChainPage() {
           </AnimatePresence>
 
           <CascadeVisualization />
+          <ClimateScenarioToggle scenario={scenario} onChange={setScenario} />
+          <CarbonSinkSection />
         </div>
       </div>
     </div>

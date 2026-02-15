@@ -223,6 +223,31 @@ export function getAudioBuffer(audioId: string): Buffer | undefined {
   return audioCache.get(audioId);
 }
 
+export function hasValidAudio(audioId: string): boolean {
+  const buf = audioCache.get(audioId);
+  return !!buf && buf.length > 0;
+}
+
+export function getGreetingText(callLogId: string): string | undefined {
+  const state = conversations.get(callLogId);
+  if (state && state.transcript.length > 0) {
+    return state.transcript[0].text;
+  }
+  return undefined;
+}
+
+export function getResponseText(callLogId: string, audioId: string): string | undefined {
+  const state = conversations.get(callLogId);
+  if (!state) return undefined;
+  const turnMatch = audioId.match(/response-.*-(\d+)$/);
+  if (turnMatch) {
+    const agentEntries = state.transcript.filter(t => t.role === "agent");
+    const idx = parseInt(turnMatch[1]);
+    if (agentEntries[idx]) return agentEntries[idx].text;
+  }
+  return state.transcript[state.transcript.length - 1]?.text;
+}
+
 function analyzeOutcome(state: ConversationState, userText: string) {
   const lower = userText.toLowerCase();
   const positiveSignals = [

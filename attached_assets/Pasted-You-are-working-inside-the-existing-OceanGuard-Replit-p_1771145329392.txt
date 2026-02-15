@@ -1,0 +1,101 @@
+You are working inside the existing OceanGuard Replit project (React + TypeScript + Tailwind + Three.js, Node/Express backend, Postgres w/ Drizzle, MongoDB mirror, SSE for real-time). 
+
+GOAL:
+Remove/retire the “Sustainability Education Hub” feature and replace it with a new feature called:
+
+✅ “OceanGuard School Scoreboard”
+A classroom-friendly sustainability competition that lets schools “adopt” one of the 20 monitored cities, earn points through actions, and appear on a live leaderboard.
+
+NON-NEGOTIABLE REQUIREMENTS:
+1) Completely remove Education Hub pages/routes/nav items/components and any references in copy.
+2) Add Scoreboard feature end-to-end (frontend + backend + database schema + seed + API).
+3) Keep design consistent with the rest of the app (Tailwind + Framer Motion, cards, clean layout).
+4) Must feel like “Best Hack for Sustainability in Education”: schools + classroom action + sustainability outcomes.
+
+FEATURE SPEC:
+A) Core UX
+- New nav item: “Scoreboard”
+- Main page shows:
+  - Global leaderboard of schools (ranked by total points)
+  - “Adopted city” for each school
+  - Weekly points + all-time points toggle
+  - Badges for milestones (e.g., “First Cleanup”, “$100 Funded”, “100kg Removed”)
+  - Quick filters: City, Region, K-12 vs College
+
+B) School Profile Page
+- Clicking a school opens a profile:
+  - School name, type (K-12 / College), location (optional), adopted city
+  - Points breakdown by category with a simple chart (no custom colors)
+  - Timeline of actions (recent activities)
+  - Impact summary: trash removed estimate, volunteers, funds raised, CO2 equivalent (simple conversion is OK)
+  - “Join/Submit Action” button (creates a pending action)
+
+C) Actions that earn points
+Create a simple, auditable action logging system:
+Action types (minimum):
+1) “Classroom Mission Completed” (teacher-run activity)
+2) “Cleanup Event Logged”
+3) “Donation Raised” (ties to your existing cleanup operations + Solana donation receipts if available)
+4) “Awareness Activity” (e.g., presentation, poster campaign)
+
+Each action has:
+- id, school_id, action_type, city_id, timestamp
+- points_awarded
+- evidence fields: description + optional URL + optional Solana tx signature
+- status: PENDING / APPROVED / REJECTED
+
+D) Scoring rules (implement as code constants)
+- Classroom Mission Completed: +50 points
+- Cleanup Event Logged: +200 points + (2 points per kg trash removed)
+- Donation Raised: +1 point per $1 (cap 500 per donation)
+- Awareness Activity: +75 points
+Add milestone badges:
+- First Action
+- 500 points
+- 1,000 points
+- $100 raised
+- 100kg removed
+
+E) Admin review (simple)
+- Add a lightweight admin screen (can be hidden behind an ENV var or a hardcoded dev check) to approve/reject pending actions.
+- When approved, points are added to school totals and leaderboard updates live.
+
+F) Real-time updates
+- Use your existing SSE patterns to push leaderboard updates (every 30–60s OR on action approval).
+
+DATABASE (Postgres + Drizzle):
+Add tables (names flexible):
+- schools
+  - id (uuid)
+  - name
+  - type (ENUM: K12, COLLEGE)
+  - adopted_city_id (references cities table you already have)
+  - created_at
+- school_actions
+  - id (uuid)
+  - school_id (fk)
+  - action_type (ENUM)
+  - city_id (fk)
+  - description
+  - evidence_url (nullable)
+  - solana_tx_sig (nullable)
+  - kg_trash_removed (nullable numeric)
+  - donation_usd (nullable numeric)
+  - status (ENUM: PENDING, APPROVED, REJECTED)
+  - points_awarded (numeric)
+  - created_at
+  - reviewed_at (nullable)
+- school_point_totals (optional materialized table; OK to compute on fly if performant)
+  - school_id
+  - total_points
+  - weekly_points (points in last 7 days)
+
+If you already have a cities table, reuse it. If not, create a simple cities table with the 20 cities already tracked in the globe view.
+
+API (Node/Express):
+Implement REST endpoints:
+- GET /api/scoreboard/leaderboard?period=weekly|alltime&city_id=&type=
+- GET /api/scoreboard/schools/:id
+- POST /api/scoreboard/schools (create school) [optional for demo]
+- POST /api/scoreboard/actions (submit pending action)
+... (18 lines left)

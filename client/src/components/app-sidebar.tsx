@@ -21,7 +21,7 @@ import {
   Activity,
   Globe,
   Trash2,
-  GraduationCap,
+  Trophy,
   Zap,
   Fish,
 } from "lucide-react";
@@ -35,7 +35,7 @@ const navItems = [
   { title: "Carbon Credits", url: "/carbon", icon: Coins },
   { title: "Analytics", url: "/analytics", icon: Activity },
   { title: "Food Chain", url: "/food-chain", icon: Fish },
-  { title: "Education", url: "/education", icon: GraduationCap },
+  { title: "Scoreboard", url: "/scoreboard", icon: Trophy },
   { title: "Edge AI", url: "/edge-ai", icon: Zap },
   { title: "Technology", url: "/technology", icon: Cpu },
 ];

@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema, insertCallLogSchema } from "@shared/schema";
+import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema, insertCallLogSchema, insertSchoolSchema, insertSchoolActionSchema } from "@shared/schema";
+import { calculatePoints } from "./globalSeed";
 import { textToSpeechBuffer } from "./elevenlabs";
 import { initiateOutboundCall, getCallStatus } from "./calling";
 import { getMongoStats, syncToMongo } from "./mongodb";
-import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript, processUserSpeech, getAudioBuffer, cleanupConversation } from "./twilio-bridge";
+import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript, processUserSpeech, getAudioBuffer, hasValidAudio, getGreetingText, getResponseText, cleanupConversation } from "./twilio-bridge";
 import twilio from "twilio";
 import { analyzeOceanData, isSnowflakeConfigured, snowflakeCortexComplete } from "./snowflake";
 
@@ -220,6 +221,10 @@ export async function registerRoutes(
     return "localhost:5000";
   }
 
+  function escapeXml(str: string): string {
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+  }
+
   function validateTwilioRequest(req: any): boolean {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     if (!authToken) return true;
@@ -242,12 +247,21 @@ export async function registerRoutes(
     }
 
     const serverDomain = getTwilioServerDomain();
-    const audioUrl = `https://${serverDomain}/api/tts/audio/greeting-${callLogId}`;
+    const greetingAudioId = `greeting-${callLogId}`;
     const gatherUrl = `https://${serverDomain}/api/twilio/process-speech?callLogId=${encodeURIComponent(callLogId)}`;
+
+    let playOrSay: string;
+    if (hasValidAudio(greetingAudioId)) {
+      const audioUrl = `https://${serverDomain}/api/tts/audio/${greetingAudioId}`;
+      playOrSay = `<Play>${audioUrl}</Play>`;
+    } else {
+      const fallbackText = getGreetingText(callLogId) || "Hello, this is OceanGuard verification. Could you tell me about the current conditions at the cleanup site?";
+      playOrSay = `<Say voice="Polly.Joanna">${escapeXml(fallbackText)}</Say>`;
+    }
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${audioUrl}</Play>
+  ${playOrSay}
   <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
   </Gather>
   <Say>I didn't hear a response. Thank you for your time. Goodbye.</Say>
@@ -286,14 +300,21 @@ export async function registerRoutes(
     try {
       console.log(`[Call ${callLogId}] User said: "${speechResult}"`);
       const result = await processUserSpeech(callLogId, speechResult);
-      const audioUrl = `https://${serverDomain}/api/tts/audio/${result.audioId}`;
+
+      let playOrSay: string;
+      if (hasValidAudio(result.audioId)) {
+        const audioUrl = `https://${serverDomain}/api/tts/audio/${result.audioId}`;
+        playOrSay = `<Play>${audioUrl}</Play>`;
+      } else {
+        playOrSay = `<Say voice="Polly.Joanna">${escapeXml(result.responseText)}</Say>`;
+      }
 
       if (result.isFinished) {
         console.log(`[Call ${callLogId}] Conversation finished. Outcome: ${result.outcome}`);
         res.type("text/xml");
         res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${audioUrl}</Play>
+  ${playOrSay}
   <Pause length="1"/>
   <Hangup/>
 </Response>`);
@@ -301,7 +322,7 @@ export async function registerRoutes(
         res.type("text/xml");
         res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Play>${audioUrl}</Play>
+  ${playOrSay}
   <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
   </Gather>
   <Say>Thank you for your time. Goodbye.</Say>
@@ -634,6 +655,163 @@ Provide a thorough, data-driven response referencing specific values from the mo
   app.get("/api/mongodb/stats", async (_req, res) => {
     const stats = await getMongoStats();
     res.json(stats);
+  });
+
+  app.get("/api/scoreboard/leaderboard", async (req, res) => {
+    try {
+      const period = (req.query.period as "weekly" | "alltime") || "alltime";
+      const cityId = req.query.city_id as string | undefined;
+      const schoolType = req.query.type as string | undefined;
+      const leaderboard = await storage.getLeaderboard(period, cityId, schoolType);
+
+      const MILESTONES = [
+        { id: "first_action", label: "First Action", check: (total: number, actions: any[]) => actions.length >= 1 },
+        { id: "500_points", label: "500 Points", check: (total: number) => total >= 500 },
+        { id: "1000_points", label: "1,000 Points", check: (total: number) => total >= 1000 },
+        { id: "100_raised", label: "$100 Raised", check: (_t: number, actions: any[]) => actions.filter((a: any) => a.actionType === "DONATION_RAISED" && a.status === "APPROVED").reduce((s: number, a: any) => s + (a.donationUsd || 0), 0) >= 100 },
+        { id: "100kg_removed", label: "100kg Removed", check: (_t: number, actions: any[]) => actions.filter((a: any) => a.actionType === "CLEANUP_EVENT" && a.status === "APPROVED").reduce((s: number, a: any) => s + (a.kgTrashRemoved || 0), 0) >= 100 },
+      ];
+
+      const allActions = await storage.getSchoolActions();
+      const enriched = leaderboard.map((entry) => {
+        const schoolActs = allActions.filter(a => a.schoolId === entry.school.id);
+        const badges = MILESTONES.filter(m => m.check(entry.totalPoints, schoolActs)).map(m => ({ id: m.id, label: m.label }));
+        return { ...entry, badges };
+      });
+
+      res.json(enriched);
+    } catch (err: any) {
+      res.status(500).json({ message: "Leaderboard failed", error: err.message });
+    }
+  });
+
+  app.get("/api/scoreboard/schools/:id", async (req, res) => {
+    try {
+      const school = await storage.getSchool(req.params.id);
+      if (!school) return res.status(404).json({ message: "School not found" });
+      const actions = await storage.getSchoolActions(req.params.id);
+      const approvedActions = actions.filter(a => a.status === "APPROVED");
+      const totalPoints = approvedActions.reduce((s, a) => s + (a.pointsAwarded || 0), 0);
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const weeklyPoints = approvedActions.filter(a => new Date(a.createdAt) >= oneWeekAgo).reduce((s, a) => s + (a.pointsAwarded || 0), 0);
+      const kgRemoved = approvedActions.reduce((s, a) => s + (a.kgTrashRemoved || 0), 0);
+      const fundsRaised = approvedActions.reduce((s, a) => s + (a.donationUsd || 0), 0);
+      const co2Equivalent = Math.round(kgRemoved * 0.3 * 10) / 10;
+
+      let adoptedCity = null;
+      if (school.adoptedCityId) {
+        adoptedCity = await storage.getCity(school.adoptedCityId);
+      }
+
+      const pointsByCategory: Record<string, number> = {};
+      for (const a of approvedActions) {
+        pointsByCategory[a.actionType] = (pointsByCategory[a.actionType] || 0) + (a.pointsAwarded || 0);
+      }
+
+      res.json({
+        school,
+        adoptedCity,
+        totalPoints,
+        weeklyPoints,
+        actionCount: approvedActions.length,
+        kgRemoved,
+        fundsRaised,
+        co2Equivalent,
+        volunteerEstimate: approvedActions.filter(a => a.actionType === "CLEANUP_EVENT").length * 8,
+        pointsByCategory,
+        recentActions: actions.slice(0, 20),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: "School profile failed", error: err.message });
+    }
+  });
+
+  app.post("/api/scoreboard/schools", async (req, res) => {
+    try {
+      const parsed = insertSchoolSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid school data", errors: parsed.error.issues });
+      const school = await storage.createSchool(parsed.data);
+      res.status(201).json(school);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to create school", error: err.message });
+    }
+  });
+
+  app.post("/api/scoreboard/actions", async (req, res) => {
+    try {
+      const { actionType, schoolId, cityId, description, evidenceUrl, solanaTxSig, kgTrashRemoved, donationUsd } = req.body;
+      if (!actionType || !schoolId || !description) {
+        return res.status(400).json({ message: "actionType, schoolId, and description are required" });
+      }
+      const validTypes = ["CLASSROOM_MISSION", "CLEANUP_EVENT", "DONATION_RAISED", "AWARENESS_ACTIVITY"];
+      if (!validTypes.includes(actionType)) {
+        return res.status(400).json({ message: `actionType must be one of: ${validTypes.join(", ")}` });
+      }
+      const points = calculatePoints(actionType, kgTrashRemoved, donationUsd);
+      const action = await storage.createSchoolAction({
+        schoolId,
+        actionType,
+        cityId: cityId || null,
+        description,
+        evidenceUrl: evidenceUrl || null,
+        solanaTxSig: solanaTxSig || null,
+        kgTrashRemoved: kgTrashRemoved || null,
+        donationUsd: donationUsd || null,
+        status: "PENDING",
+        pointsAwarded: 0,
+      });
+      res.status(201).json({ ...action, calculatedPoints: points });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to submit action", error: err.message });
+    }
+  });
+
+  app.get("/api/scoreboard/actions", async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const schoolId = req.query.school_id as string | undefined;
+      const actions = await storage.getSchoolActions(schoolId, status);
+
+      if (status === "PENDING" || !status) {
+        const allSchools = await storage.getSchools();
+        const schoolMap = new Map(allSchools.map(s => [s.id, s]));
+        const enriched = actions.map(a => ({ ...a, schoolName: schoolMap.get(a.schoolId)?.name || "Unknown" }));
+        return res.json(enriched);
+      }
+
+      res.json(actions);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch actions", error: err.message });
+    }
+  });
+
+  app.post("/api/scoreboard/actions/:id/review", async (req, res) => {
+    try {
+      const { status } = req.body;
+      if (!status || !["APPROVED", "REJECTED"].includes(status)) {
+        return res.status(400).json({ message: "status must be APPROVED or REJECTED" });
+      }
+
+      const actions = await storage.getSchoolActions();
+      const action = actions.find(a => a.id === req.params.id);
+      if (!action) return res.status(404).json({ message: "Action not found" });
+
+      if (status === "APPROVED") {
+        const points = calculatePoints(action.actionType, action.kgTrashRemoved, action.donationUsd);
+        await storage.reviewSchoolAction(req.params.id, "APPROVED");
+        const { db: dbInst } = await import("./db");
+        const { schoolActions: saTable } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        await dbInst.update(saTable).set({ pointsAwarded: points } as any).where(eq(saTable.id, req.params.id));
+        const updated = (await storage.getSchoolActions()).find(a => a.id === req.params.id);
+        return res.json(updated);
+      }
+
+      const updated = await storage.reviewSchoolAction(req.params.id, "REJECTED");
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: "Review failed", error: err.message });
+    }
   });
 
   return httpServer;

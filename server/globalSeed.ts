@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { cityMonitors, kelpTrashTracks, cleanupOperations } from "@shared/schema";
+import { cityMonitors, kelpTrashTracks, cleanupOperations, schools, schoolActions } from "@shared/schema";
 import { sql } from "drizzle-orm";
 
 const GLOBAL_CITIES = [
@@ -126,7 +126,110 @@ export async function seedGlobalData() {
   }
 
   console.log(`Seeded ${GLOBAL_CITIES.length} cities with tracking data and cleanup operations`);
+
+  await seedSchoolScoreboard(cityIds);
 }
+
+const SCORING = {
+  CLASSROOM_MISSION: 50,
+  CLEANUP_EVENT: 200,
+  CLEANUP_PER_KG: 2,
+  DONATION_PER_DOLLAR: 1,
+  DONATION_CAP: 500,
+  AWARENESS_ACTIVITY: 75,
+};
+
+function calculatePoints(actionType: string, kgTrash?: number | null, donationUsd?: number | null): number {
+  switch (actionType) {
+    case "CLASSROOM_MISSION": return SCORING.CLASSROOM_MISSION;
+    case "CLEANUP_EVENT": return SCORING.CLEANUP_EVENT + (kgTrash ? kgTrash * SCORING.CLEANUP_PER_KG : 0);
+    case "DONATION_RAISED": return Math.min(donationUsd ? donationUsd * SCORING.DONATION_PER_DOLLAR : 0, SCORING.DONATION_CAP);
+    case "AWARENESS_ACTIVITY": return SCORING.AWARENESS_ACTIVITY;
+    default: return 0;
+  }
+}
+
+const SCHOOL_SEED_DATA = [
+  { name: "Pacific Heights Academy", type: "K12", location: "San Francisco, CA" },
+  { name: "Harbor View High School", type: "K12", location: "Los Angeles, CA" },
+  { name: "Coral Springs Middle School", type: "K12", location: "Miami, FL" },
+  { name: "MIT Ocean Engineering Lab", type: "COLLEGE", location: "Cambridge, MA" },
+  { name: "UC San Diego Marine Sciences", type: "COLLEGE", location: "San Diego, CA" },
+  { name: "Yokohama International School", type: "K12", location: "Yokohama, Japan" },
+  { name: "University of Sydney ENV201", type: "COLLEGE", location: "Sydney, Australia" },
+  { name: "Nordic Green Academy", type: "K12", location: "Oslo, Norway" },
+];
+
+const ACTION_TEMPLATES = [
+  { type: "CLASSROOM_MISSION", desc: "Ocean pollution awareness workshop with 30 students" },
+  { type: "CLASSROOM_MISSION", desc: "Marine biology lab analyzing local water samples" },
+  { type: "CLEANUP_EVENT", desc: "Beach cleanup organized by student volunteers", kg: 45 },
+  { type: "CLEANUP_EVENT", desc: "Harbor debris removal with diving team", kg: 120 },
+  { type: "CLEANUP_EVENT", desc: "Coastal sweep removing fishing nets and plastics", kg: 78 },
+  { type: "DONATION_RAISED", desc: "Fundraiser for cleanup supplies and trash bags", usd: 250 },
+  { type: "DONATION_RAISED", desc: "Bake sale proceeds donated to drone maintenance fund", usd: 85 },
+  { type: "AWARENESS_ACTIVITY", desc: "Student-made documentary screened at school assembly" },
+  { type: "AWARENESS_ACTIVITY", desc: "Social media campaign reaching 2,000 local residents" },
+  { type: "CLASSROOM_MISSION", desc: "Data analysis project using OceanGuard API" },
+  { type: "CLEANUP_EVENT", desc: "Microplastics collection and sorting exercise", kg: 12 },
+  { type: "DONATION_RAISED", desc: "Online crowdfunding for research equipment", usd: 450 },
+  { type: "AWARENESS_ACTIVITY", desc: "Poster campaign distributed to 15 local businesses" },
+  { type: "CLASSROOM_MISSION", desc: "Virtual field trip studying kelp forest ecosystems" },
+  { type: "CLEANUP_EVENT", desc: "Reef debris removal with local dive shops", kg: 95 },
+];
+
+async function seedSchoolScoreboard(cityIds: string[]) {
+  const existingSchools = await db.select({ id: schools.id }).from(schools).limit(1);
+  if (existingSchools.length > 0) return;
+
+  console.log("Seeding School Scoreboard data...");
+
+  const schoolIds: string[] = [];
+  for (let i = 0; i < SCHOOL_SEED_DATA.length; i++) {
+    const s = SCHOOL_SEED_DATA[i];
+    const adoptedCityId = cityIds[i % cityIds.length];
+    const [created] = await db.insert(schools).values({
+      name: s.name,
+      type: s.type,
+      location: s.location,
+      adoptedCityId,
+    }).returning();
+    schoolIds.push(created.id);
+  }
+
+  const statuses: Array<"APPROVED" | "PENDING" | "REJECTED"> = ["APPROVED", "APPROVED", "APPROVED", "APPROVED", "PENDING", "PENDING", "REJECTED"];
+
+  for (let i = 0; i < 25; i++) {
+    const schoolId = schoolIds[i % schoolIds.length];
+    const template = ACTION_TEMPLATES[i % ACTION_TEMPLATES.length];
+    const cityId = cityIds[Math.floor(Math.random() * cityIds.length)];
+    const status = statuses[Math.floor(Math.random() * statuses.length)];
+    const points = calculatePoints(template.type, template.kg, template.usd);
+
+    const daysAgo = Math.floor(Math.random() * 14);
+    const actionDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+
+    await db.insert(schoolActions).values({
+      schoolId,
+      actionType: template.type,
+      cityId,
+      description: template.desc,
+      kgTrashRemoved: template.kg || null,
+      donationUsd: template.usd || null,
+      status,
+      pointsAwarded: status === "APPROVED" ? points : 0,
+    });
+
+    await db.execute(sql`UPDATE school_actions SET created_at = ${actionDate} WHERE id = (SELECT id FROM school_actions ORDER BY created_at DESC LIMIT 1)`);
+    if (status !== "PENDING") {
+      await db.execute(sql`UPDATE school_actions SET reviewed_at = ${new Date(actionDate.getTime() + 3600000)} WHERE id = (SELECT id FROM school_actions ORDER BY created_at DESC LIMIT 1)`);
+    }
+  }
+
+  console.log(`Seeded ${SCHOOL_SEED_DATA.length} schools with 25 actions for School Scoreboard`);
+}
+
+export { calculatePoints, SCORING };
 
 export async function updateGlobalTracking() {
   const cities = await db.select().from(cityMonitors);
