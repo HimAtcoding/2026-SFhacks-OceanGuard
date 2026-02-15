@@ -127,6 +127,10 @@ export function registerReportRoutes(app: Express): void {
         return res.status(400).json({ error: "Report type is required" });
       }
 
+      if (!GEMINI_API_KEY || !GEMINI_BASE_URL) {
+        return res.status(500).json({ error: "Gemini AI integration is not configured" });
+      }
+
       const systemPrompt = REPORT_PROMPTS[type] || REPORT_PROMPTS["custom"];
       const dataContext = await getFullDataContext();
 
@@ -138,7 +142,7 @@ export function registerReportRoutes(app: Express): void {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      const apiUrl = `${GEMINI_BASE_URL}/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+      const apiUrl = `${GEMINI_BASE_URL}/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
 
       const geminiResponse = await fetch(apiUrl, {
         method: "POST",
@@ -157,7 +161,7 @@ export function registerReportRoutes(app: Express): void {
       if (!geminiResponse.ok) {
         const errText = await geminiResponse.text();
         console.error("Gemini API error:", errText);
-        res.write(`data: ${JSON.stringify({ content: "Failed to generate report. API error." })}\n\n`);
+        res.write(`data: ${JSON.stringify({ content: "Failed to generate report. Please try again." })}\n\n`);
         res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
         res.end();
         return;

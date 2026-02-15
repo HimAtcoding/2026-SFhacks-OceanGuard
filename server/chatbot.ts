@@ -101,11 +101,10 @@ export function registerChatbotRoutes(app: Express): void {
       res.setHeader("Connection", "keep-alive");
 
       const stream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5-mini",
         messages: chatMessages,
         stream: true,
-        max_tokens: 4096,
-        temperature: 0.7,
+        max_completion_tokens: 8192,
       });
 
       for await (const chunk of stream) {
