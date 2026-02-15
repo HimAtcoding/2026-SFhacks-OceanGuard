@@ -1,23 +1,23 @@
-import WebSocket, { WebSocketServer } from "ws";
 import type { Server } from "http";
-import { getElevenLabsApiKey } from "./elevenlabs";
+import { textToSpeechBuffer } from "./elevenlabs";
+import { snowflakeCortexComplete } from "./snowflake";
 import { storage } from "./storage";
 import { syncToMongo } from "./mongodb";
 
-interface ActiveCall {
-  callSid: string;
-  streamSid: string;
+interface ConversationState {
+  callLogId: string;
   cleanupId: string;
   operationName: string;
-  agentId: string;
-  callLogId: string;
+  cityName: string;
+  messages: Array<{ role: "assistant" | "user"; content: string }>;
   transcript: Array<{ role: "agent" | "user"; text: string; timestamp: number }>;
   outcome: string | null;
-  elevenLabsWs: WebSocket | null;
-  conversationId: string | null;
+  callSid: string;
+  turnCount: number;
 }
 
-const activeCalls = new Map<string, ActiveCall>();
+const conversations = new Map<string, ConversationState>();
+const audioCache = new Map<string, Buffer>();
 const callTranscriptListeners = new Map<string, Set<(data: any) => void>>();
 
 export function subscribeToTranscript(callLogId: string, listener: (data: any) => void) {
@@ -42,346 +42,271 @@ function notifyListeners(callLogId: string, data: any) {
   }
 }
 
-async function getSignedUrl(agentId: string): Promise<string> {
-  const apiKey = await getElevenLabsApiKey();
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-    {
-      headers: { "xi-api-key": apiKey },
-    }
-  );
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Failed to get signed URL: ${response.status} - ${err}`);
+function getServerDomain(): string {
+  if (process.env.REPLIT_DEV_DOMAIN) return process.env.REPLIT_DEV_DOMAIN;
+  if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+    return `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
   }
-  const data = await response.json();
-  return data.signed_url;
+  return "localhost:5000";
 }
 
-export function setupTwilioBridge(httpServer: Server) {
-  const wss = new WebSocketServer({ noServer: true });
-
-  httpServer.on("upgrade", (request, socket, head) => {
-    const url = new URL(request.url || "", `http://${request.headers.host}`);
-    if (url.pathname === "/ws/twilio-stream") {
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        wss.emit("connection", ws, request);
-      });
-    }
-  });
-
-  wss.on("connection", async (twilioWs, request) => {
-    console.log("Twilio WebSocket connected");
-
-    let callData: ActiveCall | null = null;
-
-    twilioWs.on("message", async (rawMessage) => {
-      try {
-        const msg = JSON.parse(rawMessage.toString());
-
-        switch (msg.event) {
-          case "start": {
-            const streamSid = msg.start.streamSid;
-            const callSid = msg.start.callSid;
-            const params = msg.start.customParameters || {};
-            const cleanupId = params.cleanupId || "";
-            const operationName = params.operationName || "";
-            const agentId = params.agentId || "";
-            const callLogId = params.callLogId || "";
-            const cityName = params.cityName || "";
-
-            console.log(`Stream started: ${streamSid}, call: ${callSid}, cleanup: ${operationName} (${cityName})`);
-
-            callData = {
-              callSid,
-              streamSid,
-              cleanupId,
-              operationName,
-              agentId,
-              callLogId,
-              transcript: [],
-              outcome: null,
-              elevenLabsWs: null,
-              conversationId: null,
-            };
-
-            activeCalls.set(callSid, callData);
-
-            try {
-              const signedUrl = await getSignedUrl(agentId);
-              const elevenLabsWs = new WebSocket(signedUrl);
-              callData.elevenLabsWs = elevenLabsWs;
-
-              elevenLabsWs.on("open", () => {
-                console.log("Connected to ElevenLabs Conversational AI");
-
-                const initConfig = {
-                  type: "conversation_initiation_client_data",
-                  conversation_config_override: {
-                    agent: {
-                      prompt: {
-                        prompt: buildCleanupPrompt(operationName, cityName),
-                      },
-                      first_message: `Hello! This is OceanGuard's automated verification system calling about the ${operationName} cleanup operation in ${cityName || "your area"}. We're reaching out to verify site conditions and availability. Can you tell me about the current status at the cleanup location?`,
-                      language: "en",
-                    },
-                    tts: {
-                      voice_id: "pFZP5JQG7iQjIQuC4Bku",
-                    },
-                  },
-                };
-                elevenLabsWs.send(JSON.stringify(initConfig));
-              });
-
-              elevenLabsWs.on("message", (data) => {
-                try {
-                  const message = JSON.parse(data.toString());
-                  handleElevenLabsMessage(message, twilioWs, callData!);
-                } catch (e) {
-                  console.error("Error parsing ElevenLabs message:", e);
-                }
-              });
-
-              elevenLabsWs.on("close", () => {
-                console.log("ElevenLabs WebSocket closed");
-                finalizeCall(callData!);
-              });
-
-              elevenLabsWs.on("error", (err) => {
-                console.error("ElevenLabs WebSocket error:", err.message);
-              });
-            } catch (err: any) {
-              console.error("Failed to connect to ElevenLabs:", err.message);
-              finalizeCall(callData);
-            }
-            break;
-          }
-
-          case "media": {
-            if (callData?.elevenLabsWs?.readyState === WebSocket.OPEN) {
-              const audioMessage = {
-                user_audio_chunk: msg.media.payload,
-              };
-              callData.elevenLabsWs.send(JSON.stringify(audioMessage));
-            }
-            break;
-          }
-
-          case "stop": {
-            console.log("Twilio stream stopped");
-            if (callData?.elevenLabsWs) {
-              callData.elevenLabsWs.close();
-            }
-            break;
-          }
-        }
-      } catch (e) {
-        console.error("Error handling Twilio message:", e);
-      }
-    });
-
-    twilioWs.on("close", () => {
-      console.log("Twilio WebSocket closed");
-      if (callData?.elevenLabsWs) {
-        callData.elevenLabsWs.close();
-      }
-    });
-
-    twilioWs.on("error", (err) => {
-      console.error("Twilio WebSocket error:", err.message);
-    });
-  });
-}
-
-function handleElevenLabsMessage(message: any, twilioWs: WebSocket, callData: ActiveCall) {
-  switch (message.type) {
-    case "conversation_initiation_metadata": {
-      callData.conversationId = message.conversation_initiation_metadata_event?.conversation_id || null;
-      console.log("ElevenLabs conversation started:", callData.conversationId);
-
-      notifyListeners(callData.callLogId, {
-        type: "status",
-        status: "connected",
-        conversationId: callData.conversationId,
-      });
-      break;
-    }
-
-    case "audio": {
-      if (twilioWs.readyState === WebSocket.OPEN && callData.streamSid) {
-        const audioPayload = {
-          event: "media",
-          streamSid: callData.streamSid,
-          media: {
-            payload: message.audio_event?.audio_base_64,
-          },
-        };
-        twilioWs.send(JSON.stringify(audioPayload));
-      }
-      break;
-    }
-
-    case "agent_response": {
-      const text = message.agent_response_event?.agent_response;
-      if (text) {
-        callData.transcript.push({
-          role: "agent",
-          text,
-          timestamp: Date.now(),
-        });
-
-        notifyListeners(callData.callLogId, {
-          type: "transcript",
-          role: "agent",
-          text,
-          timestamp: Date.now(),
-        });
-
-        console.log(`Agent: ${text}`);
-      }
-      break;
-    }
-
-    case "user_transcript": {
-      const text = message.user_transcription_event?.user_transcript;
-      if (text) {
-        callData.transcript.push({
-          role: "user",
-          text,
-          timestamp: Date.now(),
-        });
-
-        notifyListeners(callData.callLogId, {
-          type: "transcript",
-          role: "user",
-          text,
-          timestamp: Date.now(),
-        });
-
-        console.log(`User: ${text}`);
-        analyzeOutcome(callData, text);
-      }
-      break;
-    }
-
-    case "interruption": {
-      if (twilioWs.readyState === WebSocket.OPEN && callData.streamSid) {
-        twilioWs.send(JSON.stringify({
-          event: "clear",
-          streamSid: callData.streamSid,
-        }));
-      }
-      break;
-    }
-
-    case "ping": {
-      if (callData.elevenLabsWs?.readyState === WebSocket.OPEN) {
-        callData.elevenLabsWs.send(JSON.stringify({
-          type: "pong",
-          event_id: message.ping_event?.event_id,
-        }));
-      }
-      break;
+export function cleanupConversation(callLogId: string) {
+  const state = conversations.get(callLogId);
+  if (state && !state.outcome) {
+    state.outcome = "inconclusive";
+    finalizeConversation(callLogId).catch(() => {});
+  }
+  for (const key of audioCache.keys()) {
+    if (key.includes(callLogId)) {
+      audioCache.delete(key);
     }
   }
 }
 
-function analyzeOutcome(callData: ActiveCall, userText: string) {
+function buildSystemPrompt(operationName: string, cityName: string): string {
+  return `You are a phone agent for OceanGuard, an AI-powered ocean health monitoring platform. You are on a live phone call verifying conditions at a marine cleanup site.
+
+CONTEXT:
+- Operation: ${operationName}
+- Location: ${cityName || "a monitored coastal area"}
+- Purpose: Verify site readiness for a scheduled marine debris cleanup
+
+YOUR BEHAVIOR:
+- Be professional, warm, and conversational like a real person on the phone
+- Keep responses concise (1-3 sentences max) since this is a phone call
+- Ask follow-up questions naturally based on what the person says
+- If they mention conditions, ask for more detail
+- If they seem hesitant, reassure them about the cleanup process
+- Work toward getting a clear confirmation or denial of site availability
+- If they ask about OceanGuard, briefly explain it monitors ocean health using drones and AI
+
+IMPORTANT: Generate ONLY your spoken response. No prefixes, labels, or formatting. Just natural speech.`;
+}
+
+export async function initConversation(params: {
+  callLogId: string;
+  cleanupId: string;
+  operationName: string;
+  cityName: string;
+  callSid: string;
+}): Promise<string> {
+  const greeting = `Hello! This is OceanGuard's verification system calling about the ${params.operationName} cleanup operation${params.cityName ? ` in ${params.cityName}` : ""}. We'd like to verify the current conditions at the site. Could you tell me about the situation there?`;
+
+  const state: ConversationState = {
+    ...params,
+    messages: [{ role: "assistant", content: greeting }],
+    transcript: [{ role: "agent", text: greeting, timestamp: Date.now() }],
+    outcome: null,
+    turnCount: 0,
+  };
+
+  conversations.set(params.callLogId, state);
+
+  const audioId = `greeting-${params.callLogId}`;
+  try {
+    const audioBuffer = await textToSpeechBuffer(greeting);
+    audioCache.set(audioId, audioBuffer);
+  } catch (err: any) {
+    console.error("ElevenLabs TTS greeting failed:", err.message);
+    audioCache.set(audioId, Buffer.alloc(0));
+  }
+
+  notifyListeners(params.callLogId, {
+    type: "status",
+    status: "connected",
+  });
+  notifyListeners(params.callLogId, {
+    type: "transcript",
+    role: "agent",
+    text: greeting,
+    timestamp: Date.now(),
+  });
+
+  return audioId;
+}
+
+export function updateCallSid(callLogId: string, callSid: string) {
+  const state = conversations.get(callLogId);
+  if (state) {
+    state.callSid = callSid;
+  }
+}
+
+export async function processUserSpeech(
+  callLogId: string,
+  speechText: string
+): Promise<{
+  responseText: string;
+  audioId: string;
+  isFinished: boolean;
+  outcome: string | null;
+}> {
+  const state = conversations.get(callLogId);
+  if (!state) throw new Error("Conversation not found");
+
+  state.turnCount++;
+  state.transcript.push({ role: "user", text: speechText, timestamp: Date.now() });
+
+  notifyListeners(callLogId, {
+    type: "transcript",
+    role: "user",
+    text: speechText,
+    timestamp: Date.now(),
+  });
+
+  analyzeOutcome(state, speechText);
+
+  let responseText: string;
+  let isFinished = false;
+
+  if (state.outcome === "accepted") {
+    responseText = `That's great to hear! I've confirmed that the ${state.operationName} site${state.cityName ? ` in ${state.cityName}` : ""} is available for the cleanup operation. Our team will proceed with scheduling. Thank you so much for your help with ocean conservation!`;
+    isFinished = true;
+  } else if (state.outcome === "declined") {
+    responseText = `I understand, thank you for letting us know. I'll update our records that the site is currently unavailable. If conditions change, our team may reach out again. Thank you for your time!`;
+    isFinished = true;
+  } else if (state.turnCount >= 6) {
+    responseText = `Thank you for all this information. I'll pass everything along to our operations team and they may follow up if needed. Have a great day!`;
+    state.outcome = "inconclusive";
+    isFinished = true;
+  } else {
+    state.messages.push({ role: "user", content: speechText });
+
+    const conversationHistory = state.messages
+      .map((m) => `${m.role === "assistant" ? "Agent" : "Person"}: ${m.content}`)
+      .join("\n");
+
+    const prompt = `${buildSystemPrompt(state.operationName, state.cityName)}
+
+Conversation so far:
+${conversationHistory}
+
+Generate your next spoken response:`;
+
+    try {
+      responseText = await snowflakeCortexComplete(prompt, "mistral-large2");
+      responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
+    } catch (err: any) {
+      console.error("Snowflake Cortex response failed:", err.message);
+      responseText = "I appreciate you sharing that. Could you clarify whether the site would be available for the cleanup operation?";
+    }
+
+    state.messages.push({ role: "assistant", content: responseText });
+  }
+
+  state.transcript.push({ role: "agent", text: responseText, timestamp: Date.now() });
+
+  notifyListeners(callLogId, {
+    type: "transcript",
+    role: "agent",
+    text: responseText,
+    timestamp: Date.now(),
+  });
+
+  const audioId = `response-${callLogId}-${state.turnCount}`;
+  try {
+    const audioBuffer = await textToSpeechBuffer(responseText);
+    audioCache.set(audioId, audioBuffer);
+  } catch (err: any) {
+    console.error("ElevenLabs TTS response failed:", err.message);
+    audioCache.set(audioId, Buffer.alloc(0));
+  }
+
+  if (isFinished) {
+    await finalizeConversation(callLogId);
+  }
+
+  return { responseText, audioId, isFinished, outcome: state.outcome };
+}
+
+export function getAudioBuffer(audioId: string): Buffer | undefined {
+  return audioCache.get(audioId);
+}
+
+function analyzeOutcome(state: ConversationState, userText: string) {
   const lower = userText.toLowerCase();
-  const positiveSignals = ["yes", "available", "ready", "good to go", "confirm", "sure", "absolutely", "of course", "that works", "we can do", "sounds good", "go ahead", "approved"];
-  const negativeSignals = ["no", "not available", "can't", "cannot", "unavailable", "closed", "denied", "reject", "impossible", "not possible", "negative", "decline"];
+  const positiveSignals = [
+    "yes", "available", "ready", "good to go", "confirm", "sure",
+    "absolutely", "of course", "that works", "we can do", "sounds good",
+    "go ahead", "approved", "affirmative", "no problem", "definitely",
+  ];
+  const negativeSignals = [
+    "no", "not available", "can't", "cannot", "unavailable", "closed",
+    "denied", "reject", "impossible", "not possible", "negative", "decline",
+    "not ready", "won't work", "forget it",
+  ];
 
   for (const signal of positiveSignals) {
     if (lower.includes(signal)) {
-      callData.outcome = "accepted";
+      state.outcome = "accepted";
       return;
     }
   }
   for (const signal of negativeSignals) {
     if (lower.includes(signal)) {
-      callData.outcome = "declined";
+      state.outcome = "declined";
       return;
     }
   }
 }
 
-async function finalizeCall(callData: ActiveCall) {
-  if (!callData.callLogId) return;
+async function finalizeConversation(callLogId: string) {
+  const state = conversations.get(callLogId);
+  if (!state) return;
 
-  const transcriptText = callData.transcript
+  const transcriptText = state.transcript
     .map((t) => `${t.role === "agent" ? "OceanGuard" : "Recipient"}: ${t.text}`)
     .join("\n");
 
-  const outcome = callData.outcome || (callData.transcript.length > 2 ? "inconclusive" : "no_response");
-
-  const resultSummary = outcome === "accepted"
-    ? "Site availability confirmed - cleanup can proceed as planned."
-    : outcome === "declined"
-    ? "Site not available or conditions unfavorable for cleanup operation."
-    : outcome === "inconclusive"
-    ? "Call completed but availability status unclear - manual follow-up recommended."
-    : "No meaningful response received - recommend retry or manual contact.";
+  const outcome = state.outcome || "inconclusive";
+  const resultSummary =
+    outcome === "accepted"
+      ? "Site availability confirmed - cleanup can proceed as planned."
+      : outcome === "declined"
+      ? "Site not available or conditions unfavorable for cleanup operation."
+      : "Call completed but availability status unclear - manual follow-up recommended.";
 
   try {
-    await storage.updateCallLog(callData.callLogId, {
+    await storage.updateCallLog(state.callLogId, {
       status: "completed",
       transcript: transcriptText || null,
-      conversationId: callData.conversationId || callData.callSid,
+      conversationId: state.callSid,
       result: `${outcome}: ${resultSummary}`,
-      duration: callData.transcript.length > 0
-        ? Math.round((callData.transcript[callData.transcript.length - 1].timestamp - callData.transcript[0].timestamp) / 1000)
-        : 0,
+      duration:
+        state.transcript.length > 0
+          ? Math.round(
+              (state.transcript[state.transcript.length - 1].timestamp -
+                state.transcript[0].timestamp) /
+                1000
+            )
+          : 0,
     });
 
-    notifyListeners(callData.callLogId, {
+    notifyListeners(callLogId, {
       type: "completed",
       outcome,
       result: resultSummary,
-      transcript: callData.transcript,
-      duration: callData.transcript.length > 0
-        ? Math.round((callData.transcript[callData.transcript.length - 1].timestamp - callData.transcript[0].timestamp) / 1000)
-        : 0,
+      transcript: state.transcript,
     });
 
-    syncToMongo("call_logs", { id: callData.callLogId }).catch(() => {});
+    syncToMongo("call_logs", { id: callLogId }).catch(() => {});
   } catch (err) {
     console.error("Failed to finalize call:", err);
   }
 
-  activeCalls.delete(callData.callSid);
-}
+  conversations.delete(callLogId);
 
-function buildCleanupPrompt(operationName: string, cityName: string): string {
-  return `You are an AI calling agent for OceanGuard, an ocean health monitoring platform. You are making an outbound phone call to verify the availability and conditions at a marine cleanup site.
-
-CONTEXT:
-- Operation name: ${operationName}
-- Location: ${cityName || "a monitored coastal area"}
-- Purpose: Verify site readiness for a scheduled marine debris cleanup operation
-
-YOUR OBJECTIVES:
-1. Clearly identify yourself as calling from OceanGuard's automated verification system about "${operationName}" in ${cityName || "the area"}
-2. Ask if the site is currently accessible and available for cleanup operations
-3. Inquire about current conditions: weather, water state, debris levels, any hazards
-4. Ask about any special equipment or permission requirements
-5. If they express concerns, address them helpfully with information about standard cleanup procedures
-6. Determine whether they confirm availability (accepted) or deny it (declined)
-7. Thank them and confirm the information will be logged in the OceanGuard system
-
-CONVERSATION GUIDELINES:
-- Be professional, warm, and concise
-- If they ask questions about OceanGuard, explain it's an AI-powered ocean health monitoring platform that coordinates marine cleanup operations using drone technology and real-time data
-- If they're unsure about conditions, suggest they can provide a tentative confirmation and note any concerns
-- If they ask about timing, explain the operation is being planned and this call is to verify site readiness
-- Keep the conversation under 2-3 minutes
-- Always end by thanking them for their time and confirming next steps
-
-IMPORTANT: You must naturally determine if the site is available (accepted) or not (declined) and communicate that clearly.`;
-}
-
-export function getActiveCallTranscript(callLogId: string): ActiveCall | undefined {
-  for (const call of activeCalls.values()) {
-    if (call.callLogId === callLogId) return call;
+  for (const key of audioCache.keys()) {
+    if (key.includes(callLogId)) {
+      audioCache.delete(key);
+    }
   }
-  return undefined;
+}
+
+export function getActiveCallTranscript(callLogId: string): ConversationState | undefined {
+  return conversations.get(callLogId);
+}
+
+export function setupTwilioBridge(httpServer: Server) {
+  console.log("Twilio-Snowflake-ElevenLabs conversation bridge initialized");
 }

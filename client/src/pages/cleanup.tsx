@@ -310,6 +310,11 @@ function CallButton({ cleanupId, operationName }: { cleanupId: string; operation
         {calling ? "Calling..." : showPhoneInput ? "Place Call" : "Verify Availability"}
       </Button>
       {showPhoneInput && !calling && (
+        <p className="text-[9px] text-muted-foreground text-center" data-testid="text-call-tech">
+          Powered by Snowflake Cortex AI + ElevenLabs Voice
+        </p>
+      )}
+      {showPhoneInput && !calling && (
         <Button
           size="sm"
           variant="ghost"

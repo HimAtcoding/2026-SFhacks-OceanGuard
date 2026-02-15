@@ -5,9 +5,11 @@ AI-powered drone ocean health monitoring platform. Features real-time dashboard 
 
 ## Recent Changes
 - 2026-02-15: Added Snowflake Cortex AI integration (server/snowflake.ts) with LLM-powered ocean data analysis on Analytics page
-- 2026-02-15: Added WebSocket bridge (server/twilio-bridge.ts) for Twilio-ElevenLabs live conversational AI calls with transcripts
+- 2026-02-15: Rewrote call verification system: Snowflake Cortex AI generates conversational responses, ElevenLabs provides TTS, Twilio handles calls + speech recognition via webhooks
+- 2026-02-15: Added Twilio webhook endpoints (/api/twilio/answer, /api/twilio/process-speech, /api/twilio/status) with signature validation
+- 2026-02-15: Added conversation state management with 6-turn limit, outcome detection (accepted/declined/inconclusive), audio caching
 - 2026-02-15: Added MongoDB Atlas data mirroring (server/mongodb.ts) - syncs scans, cities, tracks, cleanups, donations, alerts
-- 2026-02-15: Built ElevenLabs robocalling system (server/calling.ts) with call buttons per cleanup operation
+- 2026-02-15: Built verification calling system (server/calling.ts) with call buttons per cleanup operation
 - 2026-02-15: Added funding goals (fundingGoal, fundingRaised) to cleanup operations with GoFundMe-style progress bars
 - 2026-02-15: Donations can link to specific cleanups via cleanupId, auto-updates fundingRaised
 - 2026-02-15: Added call_logs database table for tracking verification call status and transcripts

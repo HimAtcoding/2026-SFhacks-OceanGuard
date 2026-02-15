@@ -3,12 +3,11 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertDroneScanSchema, insertAlertSchema, insertCleanupOperationSchema, insertDonationSchema, insertCallLogSchema } from "@shared/schema";
 import { textToSpeechBuffer } from "./elevenlabs";
-import { getOrCreateAgent, initiateOutboundCall, getCallStatus } from "./calling";
+import { initiateOutboundCall, getCallStatus } from "./calling";
 import { getMongoStats, syncToMongo } from "./mongodb";
-import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript } from "./twilio-bridge";
+import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript, processUserSpeech, getAudioBuffer, cleanupConversation } from "./twilio-bridge";
+import twilio from "twilio";
 import { analyzeOceanData, isSnowflakeConfigured, snowflakeCortexComplete } from "./snowflake";
-
-let cachedAgentId: string | null = null;
 
 export async function registerRoutes(
   httpServer: Server,
@@ -160,21 +159,16 @@ export async function registerRoutes(
         : null;
       const cityName = city?.cityName || "";
 
-      if (!cachedAgentId) {
-        cachedAgentId = await getOrCreateAgent();
-      }
-
       const callLog = await storage.createCallLog({
         cleanupId: cleanup.id,
         phoneNumber,
         status: "initiating",
-        agentId: cachedAgentId,
+        agentId: "snowflake-cortex",
       });
       syncToMongo("call_logs", callLog).catch(() => {});
 
       try {
         const result = await initiateOutboundCall(
-          cachedAgentId,
           phoneNumber,
           cleanup.id,
           cleanup.operationName,
@@ -187,7 +181,7 @@ export async function registerRoutes(
           conversationId: result.conversationId,
           result: result.status === "demo_mode"
             ? "Demo mode: Twilio credentials not available. Call simulated successfully."
-            : "Call initiated - ElevenLabs AI agent connecting via Twilio",
+            : "Call initiated - Snowflake Cortex AI + ElevenLabs voice connecting via Twilio",
         });
 
         res.json({
@@ -197,7 +191,7 @@ export async function registerRoutes(
           conversationId: result.conversationId,
           message: result.status === "demo_mode"
             ? "Call simulated in demo mode. Twilio credentials required for live calls."
-            : "Outbound call initiated! Your phone should ring shortly.",
+            : "Outbound call initiated! Snowflake Cortex AI will conduct the conversation with ElevenLabs voice.",
         });
       } catch (callErr: any) {
         await storage.updateCallLog(callLog.id, {
@@ -216,6 +210,157 @@ export async function registerRoutes(
       console.error("Call initiation error:", err.message);
       res.status(500).json({ message: "Call failed", error: err.message });
     }
+  });
+
+  function getTwilioServerDomain(): string {
+    if (process.env.REPLIT_DEV_DOMAIN) return process.env.REPLIT_DEV_DOMAIN;
+    if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+      return `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`;
+    }
+    return "localhost:5000";
+  }
+
+  function validateTwilioRequest(req: any): boolean {
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    if (!authToken) return true;
+    const signature = req.headers["x-twilio-signature"];
+    if (!signature) return false;
+    const domain = getTwilioServerDomain();
+    const url = `https://${domain}${req.originalUrl}`;
+    return twilio.validateRequest(authToken, signature, url, req.body || {});
+  }
+
+  app.post("/api/twilio/answer", async (req, res) => {
+    if (!validateTwilioRequest(req)) {
+      res.status(403).send("Forbidden");
+      return;
+    }
+    const callLogId = req.query.callLogId as string;
+    if (!callLogId) {
+      res.type("text/xml");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>System error. Goodbye.</Say><Hangup/></Response>`);
+    }
+
+    const serverDomain = getTwilioServerDomain();
+    const audioUrl = `https://${serverDomain}/api/tts/audio/greeting-${callLogId}`;
+    const gatherUrl = `https://${serverDomain}/api/twilio/process-speech?callLogId=${encodeURIComponent(callLogId)}`;
+
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>${audioUrl}</Play>
+  <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
+  </Gather>
+  <Say>I didn't hear a response. Thank you for your time. Goodbye.</Say>
+</Response>`;
+
+    res.type("text/xml");
+    res.send(twiml);
+  });
+
+  app.post("/api/twilio/process-speech", async (req, res) => {
+    if (!validateTwilioRequest(req)) {
+      res.status(403).send("Forbidden");
+      return;
+    }
+    const callLogId = req.query.callLogId as string;
+    const speechResult = req.body.SpeechResult;
+    const serverDomain = getTwilioServerDomain();
+    const gatherUrl = `https://${serverDomain}/api/twilio/process-speech?callLogId=${encodeURIComponent(callLogId)}`;
+
+    if (!callLogId) {
+      res.type("text/xml");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?><Response><Say>System error. Goodbye.</Say><Hangup/></Response>`);
+    }
+
+    if (!speechResult) {
+      res.type("text/xml");
+      return res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>I didn't catch that. Could you please repeat?</Say>
+  <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
+  </Gather>
+  <Say>Thank you for your time. Goodbye.</Say>
+</Response>`);
+    }
+
+    try {
+      console.log(`[Call ${callLogId}] User said: "${speechResult}"`);
+      const result = await processUserSpeech(callLogId, speechResult);
+      const audioUrl = `https://${serverDomain}/api/tts/audio/${result.audioId}`;
+
+      if (result.isFinished) {
+        console.log(`[Call ${callLogId}] Conversation finished. Outcome: ${result.outcome}`);
+        res.type("text/xml");
+        res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>${audioUrl}</Play>
+  <Pause length="1"/>
+  <Hangup/>
+</Response>`);
+      } else {
+        res.type("text/xml");
+        res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Play>${audioUrl}</Play>
+  <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
+  </Gather>
+  <Say>Thank you for your time. Goodbye.</Say>
+</Response>`);
+      }
+    } catch (err: any) {
+      console.error(`[Call ${callLogId}] Speech processing error:`, err.message);
+      res.type("text/xml");
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>I'm having a technical issue. Let me try again. Could you repeat that?</Say>
+  <Gather input="speech" timeout="8" speechTimeout="auto" action="${gatherUrl}" method="POST">
+  </Gather>
+  <Say>Thank you for your time. Goodbye.</Say>
+</Response>`);
+    }
+  });
+
+  app.post("/api/twilio/status", async (req, res) => {
+    if (!validateTwilioRequest(req)) {
+      res.status(403).send("Forbidden");
+      return;
+    }
+    const callLogId = req.query.callLogId as string;
+    const callStatus = req.body.CallStatus;
+    console.log(`[Call ${callLogId}] Status update: ${callStatus}`);
+
+    if (callLogId && (callStatus === "completed" || callStatus === "failed" || callStatus === "no-answer" || callStatus === "busy")) {
+      try {
+        cleanupConversation(callLogId);
+
+        const logs = await storage.getCallLogs();
+        const log = logs.find(l => l.id === callLogId);
+        if (log && log.status !== "completed") {
+          await storage.updateCallLog(callLogId, {
+            status: callStatus === "completed" ? "completed" : "failed",
+            result: callStatus === "no-answer" ? "no_response: Recipient did not pick up" :
+                    callStatus === "busy" ? "no_response: Line busy - recipient unavailable" :
+                    callStatus === "failed" ? "inconclusive: Call failed to connect" : log.result || "Call completed",
+          });
+        }
+      } catch (err) {
+        console.error("Status callback error:", err);
+      }
+    }
+    res.sendStatus(200);
+  });
+
+  app.get("/api/tts/audio/:id", (req, res) => {
+    const audioId = req.params.id;
+    const buffer = getAudioBuffer(audioId);
+    if (!buffer || buffer.length === 0) {
+      res.status(404).send("Audio not found");
+      return;
+    }
+    res.set("Content-Type", "audio/mpeg");
+    res.set("Content-Length", buffer.length.toString());
+    res.set("Cache-Control", "no-cache");
+    res.send(buffer);
   });
 
   app.get("/api/call-logs/:id/transcript-stream", (req, res) => {
