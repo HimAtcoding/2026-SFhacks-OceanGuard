@@ -12,7 +12,6 @@ Every second breath you take comes from the ocean. Not trees -- the ocean. Phyto
 
 Sharks are down 71 percent. That triggers a chain reaction called a trophic cascade -- predators collapse, the food web destabilizes, and the organisms making our oxygen disappear. Worst case? 70 percent of phytoplankton gone. 90 percent of kelp forests gone. And ocean pollution is accelerating all of it.
 
-So who's actually coordinating a response? Right now -- nobody. That's why we built OceanGuard.
 
 ---
 
@@ -20,9 +19,9 @@ So who's actually coordinating a response? Right now -- nobody. That's why we bu
 
 **[Navigate to Landing Page]**
 
-OceanGuard is a self-planning AI system for ocean cleanup. It takes real-world pollution data, figures out where to send crews, and handles everything from start to finish -- scouting locations, calling site contacts, posting jobs, onboarding volunteers, collecting donations, and tracking impact. End to end, no human has to organize a thing.
+That's why we built OceanGuard. OceanGuard is a self-planning AI system for ocean cleanup. It takes real-world pollution data, figures out where to send crews, and handles everything from start to finish -- scouting locations, calling site contacts, posting jobs, onboarding volunteers, collecting donations, and tracking impact. 
 
-Let me show you how.
+Let us show you how.
 
 ---
 
@@ -30,11 +29,11 @@ Let me show you how.
 
 **[Navigate to Tracking tab, click a city like Tokyo or Cape Town]**
 
-We monitor twenty cities around the world. When you click into a city, the 3D globe zooms in and you see five data layers you can toggle independently. Green pulsing rings are kelp forests -- healthy ecosystems acting as carbon sinks. Red rings are trash concentration zones. You can see animated ocean currents showing flow direction, topographic terrain data, and ecosystem markers for things like marine protected areas, coral reefs, and shipping corridors.
+We monitor twenty cities around the world. You can see each one on this interactive 3D globe with real-time data -- kelp health, trash levels, quality scores. When you click into a city, the globe zooms in and you get a detailed breakdown of what's happening in that region.
 
 **[Show prediction arcs]**
 
-But the critical feature here is the prediction engine. It forecasts where debris and kelp are going to drift over the next 6, 12, 24, and 48 hours using movement vector analysis. So cleanup crews don't go where the trash is now -- they go where it's going to be.
+The key feature here is the prediction engine. It forecasts where debris is going to drift over the next 6, 12, 24, and 48 hours. So cleanup crews don't go where the trash is now -- they go where it's going to be.
 
 ---
 
