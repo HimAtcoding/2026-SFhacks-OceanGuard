@@ -94,6 +94,22 @@ export const cleanupOperations = pgTable("cleanup_operations", {
   notes: text("notes"),
 });
 
+export const donations = pgTable("donations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  amount: real("amount").notNull(),
+  purpose: text("purpose").notNull(),
+  walletAddress: text("wallet_address"),
+  txSignature: text("tx_signature"),
+  status: text("status").notNull().default("pending"),
+  donorName: text("donor_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -150,3 +166,12 @@ export type KelpTrashTrack = typeof kelpTrashTracks.$inferSelect;
 export type InsertKelpTrashTrack = z.infer<typeof insertKelpTrashTrackSchema>;
 export type CleanupOperation = typeof cleanupOperations.$inferSelect;
 export type InsertCleanupOperation = z.infer<typeof insertCleanupOperationSchema>;
+
+export const insertDonationSchema = createInsertSchema(donations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Donation = typeof donations.$inferSelect;
+export type InsertDonation = z.infer<typeof insertDonationSchema>;
+export type AppSetting = typeof appSettings.$inferSelect;

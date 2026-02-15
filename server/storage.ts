@@ -5,7 +5,9 @@ import {
   type CityMonitor, type InsertCityMonitor,
   type KelpTrashTrack, type InsertKelpTrashTrack,
   type CleanupOperation, type InsertCleanupOperation,
-  users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations,
+  type Donation, type InsertDonation,
+  type AppSetting,
+  users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations, donations, appSettings,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, and } from "drizzle-orm";
@@ -33,6 +35,11 @@ export interface IStorage {
   getCleanupOpsByCity(cityId: string): Promise<CleanupOperation[]>;
   createCleanupOp(op: InsertCleanupOperation): Promise<CleanupOperation>;
   updateCleanupOp(id: string, data: Partial<InsertCleanupOperation>): Promise<CleanupOperation | undefined>;
+  getDonations(): Promise<Donation[]>;
+  createDonation(donation: InsertDonation): Promise<Donation>;
+  updateDonation(id: string, data: Partial<InsertDonation>): Promise<Donation | undefined>;
+  getSetting(key: string): Promise<AppSetting | undefined>;
+  setSetting(key: string, value: string): Promise<AppSetting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -141,6 +148,35 @@ export class DatabaseStorage implements IStorage {
   async updateCleanupOp(id: string, data: Partial<InsertCleanupOperation>): Promise<CleanupOperation | undefined> {
     const [updated] = await db.update(cleanupOperations).set(data as any).where(eq(cleanupOperations.id, id)).returning();
     return updated;
+  }
+
+  async getDonations(): Promise<Donation[]> {
+    return db.select().from(donations).orderBy(desc(donations.createdAt));
+  }
+
+  async createDonation(donation: InsertDonation): Promise<Donation> {
+    const [newDonation] = await db.insert(donations).values(donation).returning();
+    return newDonation;
+  }
+
+  async updateDonation(id: string, data: Partial<InsertDonation>): Promise<Donation | undefined> {
+    const [updated] = await db.update(donations).set(data as any).where(eq(donations.id, id)).returning();
+    return updated;
+  }
+
+  async getSetting(key: string): Promise<AppSetting | undefined> {
+    const [setting] = await db.select().from(appSettings).where(eq(appSettings.key, key));
+    return setting;
+  }
+
+  async setSetting(key: string, value: string): Promise<AppSetting> {
+    const existing = await this.getSetting(key);
+    if (existing) {
+      const [updated] = await db.update(appSettings).set({ value }).where(eq(appSettings.key, key)).returning();
+      return updated;
+    }
+    const [created] = await db.insert(appSettings).values({ key, value }).returning();
+    return created;
   }
 }
 
