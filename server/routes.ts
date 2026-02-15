@@ -6,6 +6,7 @@ import { textToSpeechBuffer } from "./elevenlabs";
 import { getOrCreateAgent, initiateOutboundCall, getCallStatus } from "./calling";
 import { getMongoStats, syncToMongo } from "./mongodb";
 import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript } from "./twilio-bridge";
+import { analyzeOceanData, isSnowflakeConfigured, snowflakeCortexComplete } from "./snowflake";
 
 let cachedAgentId: string | null = null;
 
@@ -282,6 +283,62 @@ export async function registerRoutes(
       predictions,
       generatedAt: new Date().toISOString(),
     });
+  });
+
+  app.get("/api/snowflake/status", (_req, res) => {
+    res.json({ configured: isSnowflakeConfigured() });
+  });
+
+  app.post("/api/snowflake/analyze", async (req, res) => {
+    try {
+      if (!isSnowflakeConfigured()) {
+        return res.status(503).json({ message: "Snowflake credentials not configured" });
+      }
+      const { analysisType } = req.body;
+      const cities = await storage.getCities();
+      const scans = await storage.getScans();
+      const result = await analyzeOceanData(cities, scans, analysisType || "overview");
+      res.json({ analysis: result, model: "mistral-large2", provider: "Snowflake Cortex", timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("Snowflake analysis error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/snowflake/query", async (req, res) => {
+    try {
+      if (!isSnowflakeConfigured()) {
+        return res.status(503).json({ message: "Snowflake credentials not configured" });
+      }
+      const { prompt } = req.body;
+      if (!prompt) return res.status(400).json({ message: "prompt required" });
+      if (typeof prompt !== "string" || prompt.length > 2000) {
+        return res.status(400).json({ message: "prompt must be a string under 2000 characters" });
+      }
+
+      const cities = await storage.getCities();
+      const scans = await storage.getScans();
+      const cityContext = cities.slice(0, 10).map(c => `${c.cityName} (${c.country}): kelp=${c.kelpDensity}%, trash=${c.trashLevel}%, score=${c.overallScore}`).join("\n");
+      const scanContext = scans.slice(0, 5).map(s => `Zone ${s.zone}: algae=${s.algaeLevel}%, greenery=${s.greeneryLevel}%, waterQuality=${s.waterQuality}%`).join("\n");
+
+      const fullPrompt = `You are OceanGuard's AI data analyst powered by Snowflake Cortex. You have access to live ocean monitoring data.
+
+Current city monitoring data:
+${cityContext}
+
+Recent drone scan data:
+${scanContext}
+
+User question: ${prompt}
+
+Provide a thorough, data-driven response referencing specific values from the monitoring data. Format with markdown.`;
+
+      const result = await snowflakeCortexComplete(fullPrompt, "mistral-large2");
+      res.json({ response: result, model: "mistral-large2", provider: "Snowflake Cortex", timestamp: new Date().toISOString() });
+    } catch (err: any) {
+      console.error("Snowflake query error:", err.message);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   app.get("/api/settings/:key", async (req, res) => {

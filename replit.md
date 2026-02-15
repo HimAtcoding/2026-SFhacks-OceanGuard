@@ -4,6 +4,8 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Added Snowflake Cortex AI integration (server/snowflake.ts) with LLM-powered ocean data analysis on Analytics page
+- 2026-02-15: Added WebSocket bridge (server/twilio-bridge.ts) for Twilio-ElevenLabs live conversational AI calls with transcripts
 - 2026-02-15: Added MongoDB Atlas data mirroring (server/mongodb.ts) - syncs scans, cities, tracks, cleanups, donations, alerts
 - 2026-02-15: Built ElevenLabs robocalling system (server/calling.ts) with call buttons per cleanup operation
 - 2026-02-15: Added funding goals (fundingGoal, fundingRaised) to cleanup operations with GoFundMe-style progress bars
@@ -83,6 +85,10 @@ AI-powered drone ocean health monitoring platform. Features real-time dashboard 
 - GET /api/settings/:key - Get app setting
 - POST /api/settings - Set app setting
 - GET /api/external-data - Fetch external data from configured URL
+- GET /api/snowflake/status - Check if Snowflake Cortex is configured
+- POST /api/snowflake/analyze - LLM analysis of ocean data (body: {analysisType: overview|predictions|comparison})
+- POST /api/snowflake/query - Custom LLM query against ocean data (body: {prompt})
+- GET /api/call-logs/:id/transcript-stream - SSE stream for live call transcripts
 - POST /api/chat - Streaming AI chat (body: {messages: [{role, content}]})
 - POST /api/reports/generate - Streaming AI report (body: {type, customPrompt?})
 

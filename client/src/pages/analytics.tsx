@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import type { DroneScan, Alert } from "@shared/schema";
 import {
   Activity,
@@ -14,7 +18,14 @@ import {
   Leaf,
   AlertTriangle,
   BarChart3,
+  Brain,
+  Loader2,
+  Send,
+  Sparkles,
+  Database,
+  MessageSquare,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import {
   AreaChart,
   Area,
@@ -274,6 +285,158 @@ export default function Analytics() {
           ))}
         </div>
       </Card>
+
+      <SnowflakeInsights />
     </div>
+  );
+}
+
+function SnowflakeInsights() {
+  const [activeAnalysis, setActiveAnalysis] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [customQuery, setCustomQuery] = useState("");
+  const [queryResult, setQueryResult] = useState<string | null>(null);
+
+  const { data: sfStatus } = useQuery<{ configured: boolean }>({
+    queryKey: ["/api/snowflake/status"],
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: async (analysisType: string) => {
+      const res = await apiRequest("POST", "/api/snowflake/analyze", { analysisType });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setAnalysisResult(data.analysis);
+    },
+  });
+
+  const queryMutation = useMutation({
+    mutationFn: async (prompt: string) => {
+      const res = await apiRequest("POST", "/api/snowflake/query", { prompt });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setQueryResult(data.response);
+    },
+  });
+
+  const analysisTypes = [
+    { id: "overview", label: "Health Overview", icon: Activity, desc: "Comprehensive ocean health analysis" },
+    { id: "predictions", label: "Predictive Analytics", icon: TrendingUp, desc: "30-day forecasts & emerging threats" },
+    { id: "comparison", label: "City Comparison", icon: BarChart3, desc: "Cross-city environmental comparison" },
+  ];
+
+  const handleAnalyze = (type: string) => {
+    setActiveAnalysis(type);
+    setAnalysisResult(null);
+    setQueryResult(null);
+    analyzeMutation.mutate(type);
+  };
+
+  const handleQuery = () => {
+    if (!customQuery.trim()) return;
+    setActiveAnalysis(null);
+    setAnalysisResult(null);
+    setQueryResult(null);
+    queryMutation.mutate(customQuery);
+  };
+
+  if (!sfStatus?.configured) return null;
+
+  return (
+    <Card className="p-6" data-testid="section-snowflake-insights">
+      <div className="flex items-center gap-2 mb-1">
+        <Brain className="h-5 w-5 text-primary" />
+        <h3 className="font-semibold text-foreground text-sm">AI Data Intelligence</h3>
+        <Badge variant="outline" className="gap-1 text-[10px]">
+          <Database className="h-2.5 w-2.5" />
+          Snowflake Cortex
+        </Badge>
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">LLM-powered analysis of live ocean monitoring data using Snowflake Cortex AI</p>
+
+      <div className="grid md:grid-cols-3 gap-3 mb-4">
+        {analysisTypes.map(type => (
+          <div
+            key={type.id}
+            className={`bg-muted rounded-md p-3 cursor-pointer transition-colors ${activeAnalysis === type.id ? "ring-2 ring-primary" : ""}`}
+            onClick={() => handleAnalyze(type.id)}
+            data-testid={`button-analysis-${type.id}`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <type.icon className="h-4 w-4 text-primary" />
+              <span className="text-xs font-semibold text-foreground">{type.label}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">{type.desc}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 mb-4">
+        <div className="relative flex-1">
+          <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            value={customQuery}
+            onChange={(e) => setCustomQuery(e.target.value)}
+            placeholder="Ask about ocean health data... (e.g., 'Which city has the worst pollution?')"
+            className="pl-9 text-xs"
+            onKeyDown={(e) => e.key === "Enter" && handleQuery()}
+            data-testid="input-snowflake-query"
+          />
+        </div>
+        <Button
+          size="sm"
+          onClick={handleQuery}
+          disabled={!customQuery.trim() || queryMutation.isPending}
+          data-testid="button-snowflake-query"
+        >
+          {queryMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
+
+      {(analyzeMutation.isPending || queryMutation.isPending) && (
+        <div className="flex items-center gap-2 py-8 justify-center" data-testid="snowflake-loading">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Snowflake Cortex is analyzing ocean data...</span>
+        </div>
+      )}
+
+      {(analyzeMutation.isError || queryMutation.isError) && (
+        <div className="bg-destructive/10 rounded-md p-3 mb-3">
+          <p className="text-xs text-destructive">
+            {(analyzeMutation.error as any)?.message || (queryMutation.error as any)?.message || "Analysis failed. Please try again."}
+          </p>
+        </div>
+      )}
+
+      {analysisResult && (
+        <div className="bg-muted rounded-md p-4" data-testid="snowflake-analysis-result">
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-foreground">
+              {analysisTypes.find(t => t.id === activeAnalysis)?.label || "Analysis"} Report
+            </span>
+            <Badge variant="secondary" className="text-[9px] ml-auto">Snowflake Cortex</Badge>
+          </div>
+          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-foreground [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1.5 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mb-1 [&_p]:mb-2 [&_ul]:mb-2 [&_li]:mb-0.5 [&_strong]:text-foreground">
+            <ReactMarkdown>{analysisResult}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+
+      {queryResult && (
+        <div className="bg-muted rounded-md p-4" data-testid="snowflake-query-result">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageSquare className="h-4 w-4 text-primary" />
+            <span className="text-xs font-semibold text-foreground">Query Response</span>
+            <Badge variant="secondary" className="text-[9px] ml-auto">Snowflake Cortex</Badge>
+          </div>
+          <div className="prose prose-sm dark:prose-invert max-w-none text-xs leading-relaxed text-foreground [&_h1]:text-sm [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1.5 [&_h3]:text-xs [&_h3]:font-semibold [&_h3]:mb-1 [&_p]:mb-2 [&_ul]:mb-2 [&_li]:mb-0.5 [&_strong]:text-foreground">
+            <ReactMarkdown>{queryResult}</ReactMarkdown>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
