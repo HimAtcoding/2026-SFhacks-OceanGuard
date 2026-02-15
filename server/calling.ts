@@ -1,3 +1,4 @@
+import twilio from "twilio";
 import { getElevenLabsApiKey } from "./elevenlabs";
 
 const CLEANUP_VERIFICATION_PROMPT = `You are an AI assistant from OceanGuard, an ocean health monitoring platform. You are calling to verify the availability and conditions at a marine cleanup site. 
@@ -11,67 +12,11 @@ Your goals:
 
 Be professional, friendly, and concise. Keep the call under 2 minutes.`;
 
-let cachedPhoneNumberId: string | null = null;
-
-async function importTwilioPhoneNumber(): Promise<string> {
-  const apiKey = await getElevenLabsApiKey();
-  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
-  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
-  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
-
-  if (!twilioSid || !twilioToken || !twilioPhone) {
-    throw new Error("Twilio credentials not configured (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)");
-  }
-
-  const formattedPhone = twilioPhone.startsWith("+") ? twilioPhone : `+${twilioPhone}`;
-
-  const listRes = await fetch("https://api.elevenlabs.io/v1/convai/phone-numbers", {
-    headers: { "xi-api-key": apiKey },
-  });
-
-  if (listRes.ok) {
-    const listData = await listRes.json();
-    const numbers = listData?.phone_numbers || listData || [];
-    const existing = Array.isArray(numbers)
-      ? numbers.find((p: any) => p.phone_number === formattedPhone)
-      : null;
-    if (existing?.phone_number_id) {
-      console.log("Found existing ElevenLabs phone number:", existing.phone_number_id);
-      return existing.phone_number_id;
-    }
-  }
-
-  const response = await fetch("https://api.elevenlabs.io/v1/convai/phone-numbers", {
-    method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      label: "OceanGuard Cleanup Verifier",
-      phone_number: formattedPhone,
-      twilio_account_sid: twilioSid,
-      twilio_auth_token: twilioToken,
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Failed to import phone number: ${response.status} - ${errText}`);
-  }
-
-  const data = await response.json();
-  console.log("Imported Twilio phone number into ElevenLabs:", data.phone_number_id);
-  return data.phone_number_id;
-}
-
-async function getPhoneNumberId(): Promise<string> {
-  if (cachedPhoneNumberId) return cachedPhoneNumberId;
-  cachedPhoneNumberId = await importTwilioPhoneNumber();
-  return cachedPhoneNumberId;
-}
+let cachedAgentId: string | null = null;
 
 export async function createCleanupVerificationAgent(): Promise<string> {
+  if (cachedAgentId) return cachedAgentId;
+
   const apiKey = await getElevenLabsApiKey();
 
   const response = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
@@ -103,6 +48,7 @@ export async function createCleanupVerificationAgent(): Promise<string> {
   }
 
   const data = await response.json();
+  cachedAgentId = data.agent_id;
   return data.agent_id;
 }
 
@@ -112,22 +58,12 @@ export async function initiateOutboundCall(
   cleanupId: string,
   operationName: string
 ): Promise<{ conversationId: string; status: string }> {
-  const apiKey = await getElevenLabsApiKey();
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
-  const hasTwilio = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER;
-
-  if (!hasTwilio) {
-    return {
-      conversationId: `demo_${Date.now()}`,
-      status: "demo_mode",
-    };
-  }
-
-  let phoneNumberId: string;
-  try {
-    phoneNumberId = await getPhoneNumberId();
-  } catch (err: any) {
-    console.error("Failed to get phone number ID:", err.message);
+  if (!twilioSid || !twilioToken || !twilioPhone) {
+    console.log("Twilio credentials not configured, using demo mode");
     return {
       conversationId: `demo_${Date.now()}`,
       status: "demo_mode",
@@ -135,42 +71,48 @@ export async function initiateOutboundCall(
   }
 
   const formattedTo = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
+  const formattedFrom = twilioPhone.startsWith("+") ? twilioPhone : `+${twilioPhone}`;
 
-  const callResponse = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound-call", {
-    method: "POST",
-    headers: {
-      "xi-api-key": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      agent_id: agentId,
-      agent_phone_number_id: phoneNumberId,
-      to_number: formattedTo,
-      conversation_initiation_client_data: {
-        cleanup_id: cleanupId,
-        operation_name: operationName,
-      },
-    }),
-  });
+  let elevenLabsApiKey: string;
+  try {
+    elevenLabsApiKey = await getElevenLabsApiKey();
+  } catch (err: any) {
+    console.error("ElevenLabs API key not available:", err.message);
+    return {
+      conversationId: `demo_${Date.now()}`,
+      status: "demo_mode",
+    };
+  }
 
-  if (!callResponse.ok) {
-    const errText = await callResponse.text();
-    console.error("ElevenLabs outbound call error:", callResponse.status, errText);
-    if (callResponse.status === 422 || callResponse.status === 400) {
-      console.log("Falling back to demo mode due to validation error");
+  try {
+    const client = twilio(twilioSid, twilioToken);
+
+    const twiml = `<Response><Connect><Stream url="wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${agentId}"><Parameter name="xi_api_key" value="${elevenLabsApiKey}" /></Stream></Connect></Response>`;
+
+    const call = await client.calls.create({
+      to: formattedTo,
+      from: formattedFrom,
+      twiml: twiml,
+      statusCallback: undefined,
+      timeout: 60,
+    });
+
+    console.log("Twilio call initiated:", call.sid, "to:", formattedTo);
+
+    return {
+      conversationId: call.sid,
+      status: "initiated",
+    };
+  } catch (err: any) {
+    console.error("Twilio call failed:", err.message);
+    if (err.code === 21215 || err.code === 21614 || err.code === 21211) {
       return {
         conversationId: `demo_${Date.now()}`,
         status: "demo_mode",
       };
     }
-    throw new Error(`Outbound call failed: ${callResponse.status} - ${errText}`);
+    throw new Error(`Call failed: ${err.message}`);
   }
-
-  const data = await callResponse.json();
-  return {
-    conversationId: data.conversation_id || `call_${Date.now()}`,
-    status: "initiated",
-  };
 }
 
 export async function getOrCreateAgent(): Promise<string> {
@@ -184,13 +126,26 @@ export async function getOrCreateAgent(): Promise<string> {
 }
 
 export async function getCallStatus(conversationId: string): Promise<any> {
+  if (conversationId.startsWith("demo_")) {
+    return { status: "demo_completed" };
+  }
+
+  const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+  const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+
+  if (!twilioSid || !twilioToken) {
+    return { status: "unknown" };
+  }
+
   try {
-    const apiKey = await getElevenLabsApiKey();
-    const response = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`, {
-      headers: { "xi-api-key": apiKey },
-    });
-    if (!response.ok) return { status: "unknown" };
-    return await response.json();
+    const client = twilio(twilioSid, twilioToken);
+    const call = await client.calls(conversationId).fetch();
+    return {
+      status: call.status,
+      duration: call.duration,
+      startTime: call.startTime,
+      endTime: call.endTime,
+    };
   } catch {
     return { status: "unknown" };
   }

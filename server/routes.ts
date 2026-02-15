@@ -176,8 +176,8 @@ export async function registerRoutes(
           status: result.status === "demo_mode" ? "demo_completed" : "initiated",
           conversationId: result.conversationId,
           result: result.status === "demo_mode"
-            ? "Demo mode: Twilio integration needed for live calls. Call simulated successfully."
-            : "Call initiated via ElevenLabs AI agent",
+            ? "Demo mode: Twilio credentials not available. Call simulated successfully."
+            : "Call initiated via Twilio with ElevenLabs AI agent",
         });
 
         res.json({
@@ -186,8 +186,8 @@ export async function registerRoutes(
           status: result.status,
           conversationId: result.conversationId,
           message: result.status === "demo_mode"
-            ? "Call simulated in demo mode. Connect Twilio for live outbound calls."
-            : "Outbound call initiated successfully via ElevenLabs AI",
+            ? "Call simulated in demo mode. Twilio credentials required for live calls."
+            : "Outbound call initiated! Your phone should ring shortly.",
         });
       } catch (callErr: any) {
         await storage.updateCallLog(callLog.id, {
