@@ -201,6 +201,44 @@ export const insertCallLogSchema = createInsertSchema(callLogs).omit({
   createdAt: true,
 });
 
+export const cleanupJobs = pgTable("cleanup_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cleanupId: varchar("cleanup_id").references(() => cleanupOperations.id).notNull(),
+  title: text("title").notNull(),
+  roleType: text("role_type").notNull(),
+  description: text("description").notNull(),
+  hourlyRate: real("hourly_rate").notNull(),
+  hoursPerShift: real("hours_per_shift").notNull().default(4),
+  shiftsAvailable: integer("shifts_available").notNull().default(1),
+  shiftsFilled: integer("shifts_filled").notNull().default(0),
+  certifications: text("certifications").array().notNull().default(sql`'{}'::text[]`),
+  requirements: text("requirements").array().notNull().default(sql`'{}'::text[]`),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const jobApplications = pgTable("job_applications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").references(() => cleanupJobs.id).notNull(),
+  applicantName: text("applicant_name").notNull(),
+  applicantEmail: text("applicant_email").notNull(),
+  applicantPhone: text("applicant_phone"),
+  experience: text("experience"),
+  certifications: text("certifications").array().default(sql`'{}'::text[]`),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCleanupJobSchema = createInsertSchema(cleanupJobs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertJobApplicationSchema = createInsertSchema(jobApplications).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertSchoolSchema = createInsertSchema(schools).omit({
   id: true,
   createdAt: true,
@@ -237,3 +275,7 @@ export type School = typeof schools.$inferSelect;
 export type InsertSchool = z.infer<typeof insertSchoolSchema>;
 export type SchoolAction = typeof schoolActions.$inferSelect;
 export type InsertSchoolAction = z.infer<typeof insertSchoolActionSchema>;
+export type CleanupJob = typeof cleanupJobs.$inferSelect;
+export type InsertCleanupJob = z.infer<typeof insertCleanupJobSchema>;
+export type JobApplication = typeof jobApplications.$inferSelect;
+export type InsertJobApplication = z.infer<typeof insertJobApplicationSchema>;

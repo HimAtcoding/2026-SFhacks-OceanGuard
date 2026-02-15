@@ -10,8 +10,10 @@ import {
   type AppSetting,
   type School, type InsertSchool,
   type SchoolAction, type InsertSchoolAction,
+  type CleanupJob, type InsertCleanupJob,
+  type JobApplication, type InsertJobApplication,
   users, droneScans, alerts, cityMonitors, kelpTrashTracks, cleanupOperations, donations, callLogs, appSettings,
-  schools, schoolActions,
+  schools, schoolActions, cleanupJobs, jobApplications,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, gte, and, sum, sql } from "drizzle-orm";
@@ -56,6 +58,13 @@ export interface IStorage {
   createSchoolAction(action: InsertSchoolAction): Promise<SchoolAction>;
   reviewSchoolAction(id: string, status: "APPROVED" | "REJECTED"): Promise<SchoolAction | undefined>;
   getLeaderboard(period?: "weekly" | "alltime", cityId?: string, schoolType?: string): Promise<Array<{ school: School; totalPoints: number; weeklyPoints: number; actionCount: number }>>;
+  getCleanupJobs(cleanupId?: string): Promise<CleanupJob[]>;
+  getCleanupJob(id: string): Promise<CleanupJob | undefined>;
+  createCleanupJob(job: InsertCleanupJob): Promise<CleanupJob>;
+  updateCleanupJob(id: string, data: Partial<InsertCleanupJob>): Promise<CleanupJob | undefined>;
+  getJobApplications(jobId?: string): Promise<JobApplication[]>;
+  createJobApplication(app: InsertJobApplication): Promise<JobApplication>;
+  updateJobApplication(id: string, data: Partial<InsertJobApplication>): Promise<JobApplication | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -311,6 +320,49 @@ export class DatabaseStorage implements IStorage {
     });
 
     return leaderboard;
+  }
+
+  async getCleanupJobs(cleanupId?: string): Promise<CleanupJob[]> {
+    if (cleanupId) {
+      return db.select().from(cleanupJobs).where(eq(cleanupJobs.cleanupId, cleanupId)).orderBy(desc(cleanupJobs.createdAt));
+    }
+    return db.select().from(cleanupJobs).orderBy(desc(cleanupJobs.createdAt));
+  }
+
+  async getCleanupJob(id: string): Promise<CleanupJob | undefined> {
+    const [job] = await db.select().from(cleanupJobs).where(eq(cleanupJobs.id, id));
+    return job;
+  }
+
+  async createCleanupJob(job: InsertCleanupJob): Promise<CleanupJob> {
+    const [newJob] = await db.insert(cleanupJobs).values(job).returning();
+    return newJob;
+  }
+
+  async updateCleanupJob(id: string, data: Partial<InsertCleanupJob>): Promise<CleanupJob | undefined> {
+    const [updated] = await db.update(cleanupJobs).set(data as any).where(eq(cleanupJobs.id, id)).returning();
+    return updated;
+  }
+
+  async getJobApplications(jobId?: string): Promise<JobApplication[]> {
+    if (jobId) {
+      return db.select().from(jobApplications).where(eq(jobApplications.jobId, jobId)).orderBy(desc(jobApplications.createdAt));
+    }
+    return db.select().from(jobApplications).orderBy(desc(jobApplications.createdAt));
+  }
+
+  async createJobApplication(app: InsertJobApplication): Promise<JobApplication> {
+    const [newApp] = await db.insert(jobApplications).values(app).returning();
+    const job = await this.getCleanupJob(app.jobId);
+    if (job) {
+      await db.update(cleanupJobs).set({ shiftsFilled: (job.shiftsFilled || 0) + 1 } as any).where(eq(cleanupJobs.id, app.jobId));
+    }
+    return newApp;
+  }
+
+  async updateJobApplication(id: string, data: Partial<InsertJobApplication>): Promise<JobApplication | undefined> {
+    const [updated] = await db.update(jobApplications).set(data as any).where(eq(jobApplications.id, id)).returning();
+    return updated;
   }
 }
 

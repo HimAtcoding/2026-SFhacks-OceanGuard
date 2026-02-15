@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { CleanupOperation, CityMonitor, Donation, CallLog } from "@shared/schema";
+import type { CleanupOperation, CityMonitor, Donation, CallLog, CleanupJob } from "@shared/schema";
 import {
   BarChart,
   Bar,
@@ -53,6 +53,15 @@ import {
   Phone,
   PhoneCall,
   DollarSign,
+  Briefcase,
+  GraduationCap,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  BadgeCheck,
+  Send,
+  User,
+  Mail,
 } from "lucide-react";
 import { SiSolana } from "react-icons/si";
 
@@ -858,9 +867,248 @@ function ExternalDataSection() {
   );
 }
 
+const roleTypeIcons: Record<string, any> = {
+  safety: Shield,
+  organizer: Users,
+  technical: Navigation,
+  scientific: Activity,
+  logistics: Package,
+  outreach: Megaphone,
+};
+
+const roleTypeColors: Record<string, string> = {
+  safety: "text-destructive",
+  organizer: "text-primary",
+  technical: "text-chart-1",
+  scientific: "text-chart-2",
+  logistics: "text-chart-4",
+  outreach: "text-chart-3",
+};
+
+function JobCard({ job, onApply }: { job: CleanupJob; onApply: (job: CleanupJob) => void }) {
+  const Icon = roleTypeIcons[job.roleType] || Briefcase;
+  const colorClass = roleTypeColors[job.roleType] || "text-primary";
+  const spotsLeft = job.shiftsAvailable - (job.shiftsFilled || 0);
+  const isFull = spotsLeft <= 0;
+
+  return (
+    <div className={`p-4 rounded-md border border-border space-y-3 ${isFull ? "opacity-60" : ""}`} data-testid={`job-card-${job.id}`}>
+      <div className="flex items-start gap-3">
+        <div className={`rounded-md p-2 bg-muted shrink-0 ${colorClass}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="text-sm font-semibold text-foreground" data-testid={`job-title-${job.id}`}>{job.title}</h4>
+            <Badge variant={isFull ? "secondary" : "default"} className="text-[10px]">
+              {isFull ? "Filled" : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{job.description}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-muted rounded-md p-2 text-center">
+          <p className="text-sm font-bold text-chart-2" data-testid={`job-rate-${job.id}`}>${job.hourlyRate.toFixed(2)}/hr</p>
+          <p className="text-[9px] text-muted-foreground">Hourly Rate</p>
+        </div>
+        <div className="bg-muted rounded-md p-2 text-center">
+          <p className="text-sm font-bold text-foreground">{job.hoursPerShift}h</p>
+          <p className="text-[9px] text-muted-foreground">Per Shift</p>
+        </div>
+        <div className="bg-muted rounded-md p-2 text-center">
+          <p className="text-sm font-bold text-foreground">${(job.hourlyRate * job.hoursPerShift).toFixed(0)}</p>
+          <p className="text-[9px] text-muted-foreground">Per Shift Pay</p>
+        </div>
+      </div>
+
+      {job.certifications && job.certifications.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <GraduationCap className="h-3 w-3" />
+            Required Certifications
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {job.certifications.map((cert, i) => (
+              <Badge key={i} variant="outline" className="text-[10px] gap-1" data-testid={`cert-${job.id}-${i}`}>
+                <BadgeCheck className="h-2.5 w-2.5" />
+                {cert}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {job.requirements && job.requirements.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Requirements</p>
+          <ul className="space-y-0.5">
+            {job.requirements.map((req, i) => (
+              <li key={i} className="text-[10px] text-muted-foreground flex items-start gap-1.5">
+                <CheckCircle className="h-2.5 w-2.5 mt-0.5 shrink-0 text-chart-2" />
+                {req}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <Button
+        size="sm"
+        disabled={isFull}
+        onClick={() => onApply(job)}
+        className="w-full gap-1.5"
+        data-testid={`button-apply-${job.id}`}
+      >
+        <Send className="h-3 w-3" />
+        {isFull ? "All Shifts Filled" : "Apply for This Shift"}
+      </Button>
+    </div>
+  );
+}
+
+function ApplyModal({ job, onClose, cleanupName }: { job: CleanupJob; onClose: () => void; cleanupName: string }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [experience, setExperience] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const applyMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/job-applications", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      setSubmitted(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/cleanup-jobs"] });
+    },
+  });
+
+  if (submitted) {
+    return (
+      <div className="p-4 rounded-md border border-chart-2/30 bg-chart-2/5 space-y-2" data-testid="application-success">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-chart-2" />
+          <p className="text-sm font-semibold text-foreground">Application Submitted</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Your application for <span className="font-medium text-foreground">{job.title}</span> at {cleanupName} has been submitted.
+          We'll review your qualifications and get back to you within 24-48 hours.
+        </p>
+        <Button size="sm" variant="outline" onClick={onClose} data-testid="button-close-apply">
+          Close
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 rounded-md border border-border space-y-3" data-testid="application-form">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Apply: {job.title}</p>
+          <p className="text-[10px] text-muted-foreground">${job.hourlyRate.toFixed(2)}/hr &middot; {job.hoursPerShift}h shifts &middot; {cleanupName}</p>
+        </div>
+        <Button size="icon" variant="ghost" onClick={onClose} data-testid="button-cancel-apply">
+          <AlertTriangle className="h-3 w-3" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Full Name *</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Smith" data-testid="input-applicant-name" />
+        </div>
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Email *</label>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jane@example.com" data-testid="input-applicant-email" />
+        </div>
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Phone (optional)</label>
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 555 123 4567" data-testid="input-applicant-phone" />
+        </div>
+        <div>
+          <label className="text-[10px] font-medium text-muted-foreground mb-0.5 block">Relevant Experience</label>
+          <Input value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="2 years cleanup volunteering..." data-testid="input-applicant-experience" />
+        </div>
+      </div>
+      <Button
+        onClick={() => {
+          if (!name.trim() || !email.trim()) return;
+          applyMutation.mutate({
+            jobId: job.id,
+            applicantName: name,
+            applicantEmail: email,
+            applicantPhone: phone || null,
+            experience: experience || null,
+            status: "pending",
+          });
+        }}
+        disabled={!name.trim() || !email.trim() || applyMutation.isPending}
+        className="w-full gap-1.5"
+        data-testid="button-submit-application"
+      >
+        {applyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
+        Submit Application
+      </Button>
+    </div>
+  );
+}
+
+function JobListingsSection({ cleanupId, cleanupName }: { cleanupId: string; cleanupName: string }) {
+  const [applyingJob, setApplyingJob] = useState<CleanupJob | null>(null);
+
+  const { data: jobs, isLoading } = useQuery<CleanupJob[]>({
+    queryKey: ["/api/cleanup-jobs", cleanupId],
+    queryFn: async () => {
+      const res = await fetch(`/api/cleanup-jobs?cleanupId=${cleanupId}`);
+      return res.json();
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-32 w-full" />;
+
+  const jobList = jobs || [];
+  const totalSpots = jobList.reduce((s, j) => s + j.shiftsAvailable, 0);
+  const filledSpots = jobList.reduce((s, j) => s + (j.shiftsFilled || 0), 0);
+  const avgRate = jobList.length > 0 ? jobList.reduce((s, j) => s + j.hourlyRate, 0) / jobList.length : 0;
+
+  return (
+    <div className="space-y-4 pt-3 border-t border-border" data-testid={`jobs-section-${cleanupId}`}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Briefcase className="h-4 w-4 text-primary" />
+          <h4 className="text-sm font-semibold text-foreground">Paid Positions & Shifts</h4>
+          <Badge variant="secondary" className="text-[10px]">{jobList.length} roles</Badge>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>{filledSpots}/{totalSpots} shifts filled</span>
+          <span>Avg ${avgRate.toFixed(2)}/hr</span>
+        </div>
+      </div>
+
+      {jobList.length === 0 ? (
+        <p className="text-xs text-muted-foreground py-4 text-center">No paid positions available for this operation yet.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {jobList.map(job => (
+            <JobCard key={job.id} job={job} onApply={(j) => setApplyingJob(j)} />
+          ))}
+        </div>
+      )}
+
+      {applyingJob && (
+        <ApplyModal job={applyingJob} onClose={() => setApplyingJob(null)} cleanupName={cleanupName} />
+      )}
+    </div>
+  );
+}
+
 export default function Cleanup() {
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const [selectedCleanupForDonation, setSelectedCleanupForDonation] = useState<string | undefined>(undefined);
+  const [expandedOpId, setExpandedOpId] = useState<string | null>(null);
 
   const { data: ops, isLoading: opsLoading } = useQuery<CleanupOperation[]>({
     queryKey: ["/api/cleanup"],
@@ -1090,7 +1338,8 @@ export default function Cleanup() {
       </Card>
 
       <Card className="p-6" data-testid="section-all-operations">
-        <h3 className="font-semibold text-foreground mb-4 text-sm">All Operations — Funding Goals & Verification</h3>
+        <h3 className="font-semibold text-foreground mb-4 text-sm">All Operations — Jobs, Funding & Verification</h3>
+        <p className="text-xs text-muted-foreground mb-4">Click any operation to view available paid positions and shifts. All positions pay minimum wage or above.</p>
         <div className="space-y-4">
           {operations.length === 0 ? (
             <div className="p-8 text-center">
@@ -1100,14 +1349,23 @@ export default function Cleanup() {
           ) : (
             operations.map((op) => {
               const city = op.cityId ? cityMap.get(op.cityId) : null;
+              const isExpanded = expandedOpId === op.id;
               return (
-                <div key={op.id} className="p-4 bg-muted/50 rounded-md space-y-3" data-testid={`row-operation-${op.id}`}>
-                  <div className="flex items-start gap-3 flex-wrap">
+                <div key={op.id} className={`p-4 bg-muted/50 rounded-md space-y-3 ${isExpanded ? "ring-1 ring-primary/30" : ""}`} data-testid={`row-operation-${op.id}`}>
+                  <div
+                    className="flex items-start gap-3 flex-wrap cursor-pointer"
+                    onClick={() => setExpandedOpId(isExpanded ? null : op.id)}
+                    data-testid={`button-expand-${op.id}`}
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-medium text-foreground text-sm">{op.operationName}</span>
                         <StatusBadge status={op.status} />
                         <PriorityBadge priority={op.priority} />
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <Briefcase className="h-2.5 w-2.5" />
+                          View Jobs
+                        </Badge>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         {city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{city.cityName}</span>}
@@ -1117,7 +1375,13 @@ export default function Cleanup() {
                         <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{new Date(op.startDate).toLocaleDateString()}</span>
                       </div>
                     </div>
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0 mt-1" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />}
                   </div>
+
+                  {isExpanded && (
+                    <JobListingsSection cleanupId={op.id} cleanupName={op.operationName} />
+                  )}
+
                   <div className="grid md:grid-cols-3 gap-3">
                     <div className="md:col-span-2">
                       <FundingBar goal={op.fundingGoal || 0} raised={op.fundingRaised || 0} />
@@ -1125,7 +1389,7 @@ export default function Cleanup() {
                         size="sm"
                         variant="outline"
                         className="mt-2 gap-1.5"
-                        onClick={() => setSelectedCleanupForDonation(selectedCleanupForDonation === op.id ? undefined : op.id)}
+                        onClick={(e) => { e.stopPropagation(); setSelectedCleanupForDonation(selectedCleanupForDonation === op.id ? undefined : op.id); }}
                         data-testid={`button-fund-${op.id}`}
                       >
                         <Heart className="h-3 w-3" />

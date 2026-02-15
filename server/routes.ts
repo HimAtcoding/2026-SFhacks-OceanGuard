@@ -256,7 +256,7 @@ export async function registerRoutes(
       playOrSay = `<Play>${audioUrl}</Play>`;
     } else {
       const fallbackText = getGreetingText(callLogId) || "Hello, this is OceanGuard verification. Could you tell me about the current conditions at the cleanup site?";
-      playOrSay = `<Say voice="Polly.Joanna">${escapeXml(fallbackText)}</Say>`;
+      playOrSay = `<Say voice="Polly.Amy">${escapeXml(fallbackText)}</Say>`;
     }
 
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -306,7 +306,7 @@ export async function registerRoutes(
         const audioUrl = `https://${serverDomain}/api/tts/audio/${result.audioId}`;
         playOrSay = `<Play>${audioUrl}</Play>`;
       } else {
-        playOrSay = `<Say voice="Polly.Joanna">${escapeXml(result.responseText)}</Say>`;
+        playOrSay = `<Say voice="Polly.Amy">${escapeXml(result.responseText)}</Say>`;
       }
 
       if (result.isFinished) {
@@ -811,6 +811,64 @@ Provide a thorough, data-driven response referencing specific values from the mo
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: "Review failed", error: err.message });
+    }
+  });
+
+  app.get("/api/cleanup-jobs", async (req, res) => {
+    try {
+      const cleanupId = req.query.cleanupId as string | undefined;
+      const jobs = await storage.getCleanupJobs(cleanupId);
+      res.json(jobs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/cleanup-jobs/:id", async (req, res) => {
+    try {
+      const job = await storage.getCleanupJob(req.params.id);
+      if (!job) return res.status(404).json({ message: "Job not found" });
+      res.json(job);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/cleanup-jobs", async (req, res) => {
+    try {
+      const job = await storage.createCleanupJob(req.body);
+      res.json(job);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/job-applications", async (req, res) => {
+    try {
+      const jobId = req.query.jobId as string | undefined;
+      const apps = await storage.getJobApplications(jobId);
+      res.json(apps);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/job-applications", async (req, res) => {
+    try {
+      const application = await storage.createJobApplication(req.body);
+      res.json(application);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/job-applications/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateJobApplication(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ message: "Application not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

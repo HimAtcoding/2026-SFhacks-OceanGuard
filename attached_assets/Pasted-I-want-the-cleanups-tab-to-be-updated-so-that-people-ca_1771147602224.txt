@@ -1,0 +1,24 @@
+I want the cleanups tab to be updated so that people can apply for jobs or shifts that are paid minimum wage for things outside of just cleaning. Each cleanup should be able to be clicked on to see job opportunities like Safety Leads, Organizers, etc., and they should have minimum certifications required and stuff. Also, the robocaller made progress in that if we respond, it can respond back to us on voice. However, when it responds, instead of the original British woman voice, it switches to a robotic one. Also, it only responds with "we understand the site is unavailable, thank you for your time." The robocaller should only hang up when there is a clear yes or no on whether or not we can do a cleanup. For example, when I say "it's good, but it's messy", that should be a perfect opportunity to ask if we can come clean it up. The caller should be able to handle questions asked and keep selling the idea of clean up. 
+
+
+Create an interactive educational 2D game-style visualization that explains how kelp forests and marine algae influence climate change through the ocean food chain. The experience should feel like a minimalistic side-scrolling or floating underwater game rather than a static diagram.
+
+The main interface should use a dark ocean background with extremely minimalistic design. The food chain should be represented by moving fish and organism silhouettes arranged in a flowchart-like progression from phytoplankton and zooplankton to small fish, mid-level predators, and apex predators such as sharks. Arrows or subtle motion paths should visually connect organisms to show energy transfer while preserving the clean game aesthetic.
+
+Each organism should appear as a clickable silhouette that gently moves in the 2D space. When the user clicks on an organism, a compact in-game info panel should appear with smooth animation. This panel should explain:
+
+• the organism’s ecological role in the food chain
+• how it regulates populations below it
+• how climate change affects it (warming oceans, acidification, habitat loss)
+• how changes in its population impact the rest of the ecosystem
+
+The game should visually demonstrate trophic cascades. When apex predators decline, animations should show mid-level predators increasing and lower-level populations shifting in real time. These changes should ripple through the scene so users can physically see the ecosystem rebalance.
+
+Include interactive game mechanics that let users trigger climate scenarios (e.g., temperature rise, predator loss, habitat damage). When activated, the 2D environment should animate population increases or decreases, movement speed changes, or fading silhouettes to represent ecosystem stress. Short in-game text overlays should explain how these changes affect phytoplankton levels, oxygen production, and global climate regulation.
+
+Add a visually integrated kelp forest zone that functions as a living background element and nursery habitat. Interacting with the kelp should reveal its role in carbon sequestration and ecosystem stability.
+
+The overall experience should prioritize extremely minimalistic visuals, smooth motion, and intuitive click-based interaction. The design should feel like a calm, educational ocean game that clearly communicates cause-and-effect relationships in marine ecology and climate systems.
+
+
+
