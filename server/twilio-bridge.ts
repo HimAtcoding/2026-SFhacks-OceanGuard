@@ -3,6 +3,12 @@ import { textToSpeechBuffer } from "./elevenlabs";
 import { snowflakeCortexComplete } from "./snowflake";
 import { storage } from "./storage";
 import { syncToMongo } from "./mongodb";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
 
 interface ConversationState {
   callLogId: string;
@@ -63,7 +69,7 @@ export function cleanupConversation(callLogId: string) {
   }
 }
 
-function buildSystemPrompt(operationName: string, cityName: string): string {
+function buildConversationSystemPrompt(operationName: string, cityName: string): string {
   return `You are a phone agent for OceanGuard, an AI-powered ocean health monitoring platform. You are on a live phone call verifying conditions at a marine cleanup site.
 
 CONTEXT:
@@ -75,12 +81,95 @@ YOUR BEHAVIOR:
 - Be professional, warm, and conversational like a real person on the phone
 - Keep responses concise (1-3 sentences max) since this is a phone call
 - Ask follow-up questions naturally based on what the person says
-- If they mention conditions, ask for more detail
+- LISTEN CAREFULLY to what the person actually says - if they say conditions are good, acknowledge that positively
+- If they mention the site is in good condition or ready, confirm that and ask if there are any concerns before wrapping up
+- If they mention problems, ask what kind and whether it affects the cleanup timeline
 - If they seem hesitant, reassure them about the cleanup process
-- Work toward getting a clear confirmation or denial of site availability
+- Work toward getting a clear picture of site conditions - don't assume negative when information is positive
 - If they ask about OceanGuard, briefly explain it monitors ocean health using drones and AI
+- Never jump to negative conclusions - if someone says things are "good" or "pretty good", that is a POSITIVE signal
 
 IMPORTANT: Generate ONLY your spoken response. No prefixes, labels, or formatting. Just natural speech.`;
+}
+
+async function analyzeOutcomeWithAI(state: ConversationState, userText: string): Promise<void> {
+  if (state.outcome) return;
+
+  const conversationHistory = state.transcript
+    .map((t) => `${t.role === "agent" ? "OceanGuard Agent" : "Site Contact"}: ${t.text}`)
+    .join("\n");
+
+  const analysisPrompt = `You are analyzing a phone conversation between an OceanGuard verification agent and a site contact for the "${state.operationName}" cleanup operation${state.cityName ? ` in ${state.cityName}` : ""}.
+
+The agent is trying to verify whether the cleanup site is available and conditions are suitable for a marine debris cleanup.
+
+FULL CONVERSATION SO FAR:
+${conversationHistory}
+
+LATEST MESSAGE FROM SITE CONTACT: "${userText}"
+
+Based on the FULL conversation context and especially the latest message, determine the site contact's overall sentiment about site availability:
+
+RULES FOR ANALYSIS:
+- If the person says conditions are "good", "pretty good", "fine", "okay", "not bad", "looking good" etc - that is POSITIVE even if they mention minor issues
+- "A little bit messy" alongside "pretty good" means the site IS available but has minor debris - this is POSITIVE (cleanup sites are expected to have some mess)
+- Only classify as NEGATIVE if the person clearly says the site is closed, unavailable, dangerous, or explicitly refuses
+- If the person hasn't given enough information yet, classify as CONTINUE
+- Do NOT confuse "the site has some trash/mess" with "the site is unavailable" - trash at a cleanup site is EXPECTED and is the reason for the cleanup
+
+Respond with EXACTLY one word:
+- ACCEPTED (site is available / conditions are suitable / person is positive about availability)
+- DECLINED (site is clearly unavailable / person explicitly refuses / dangerous conditions)
+- CONTINUE (not enough information yet / ambiguous / need to ask more questions)`;
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: analysisPrompt }],
+      max_completion_tokens: 10,
+      temperature: 0,
+    });
+
+    const result = response.choices[0]?.message?.content?.trim().toUpperCase() || "CONTINUE";
+
+    if (result.includes("ACCEPTED")) {
+      state.outcome = "accepted";
+    } else if (result.includes("DECLINED")) {
+      state.outcome = "declined";
+    }
+  } catch (err: any) {
+    console.error("AI outcome analysis failed, using fallback:", err.message);
+    analyzeOutcomeFallback(state, userText);
+  }
+}
+
+function analyzeOutcomeFallback(state: ConversationState, userText: string) {
+  const lower = userText.toLowerCase();
+
+  const strongPositive = [
+    "available", "ready", "good to go", "confirm", "absolutely",
+    "of course", "sounds good", "go ahead", "approved", "definitely",
+    "it's good", "it's great", "looking good", "all clear", "yes we can",
+    "pretty good", "quite good", "doing well", "in good shape",
+  ];
+  const strongNegative = [
+    "not available", "can't do", "cannot", "unavailable", "closed",
+    "impossible", "not possible", "not ready", "won't work", "shut down",
+    "too dangerous", "absolutely not", "no way",
+  ];
+
+  for (const signal of strongNegative) {
+    if (lower.includes(signal)) {
+      state.outcome = "declined";
+      return;
+    }
+  }
+  for (const signal of strongPositive) {
+    if (lower.includes(signal)) {
+      state.outcome = "accepted";
+      return;
+    }
+  }
 }
 
 export async function initConversation(params: {
@@ -154,7 +243,7 @@ export async function processUserSpeech(
     timestamp: Date.now(),
   });
 
-  analyzeOutcome(state, speechText);
+  await analyzeOutcomeWithAI(state, speechText);
 
   let responseText: string;
   let isFinished = false;
@@ -176,19 +265,43 @@ export async function processUserSpeech(
       .map((m) => `${m.role === "assistant" ? "Agent" : "Person"}: ${m.content}`)
       .join("\n");
 
-    const prompt = `${buildSystemPrompt(state.operationName, state.cityName)}
+    try {
+      const aiResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: buildConversationSystemPrompt(state.operationName, state.cityName) },
+          ...state.messages.map((m) => ({
+            role: m.role as "assistant" | "user",
+            content: m.content,
+          })),
+        ],
+        max_completion_tokens: 150,
+        temperature: 0.7,
+      });
+
+      responseText = aiResponse.choices[0]?.message?.content?.trim() || "";
+      responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
+
+      if (!responseText) {
+        responseText = "I appreciate you sharing that. Could you tell me a bit more about the current conditions at the site?";
+      }
+    } catch (err: any) {
+      console.error("OpenAI conversation response failed, trying Snowflake:", err.message);
+
+      const prompt = `${buildConversationSystemPrompt(state.operationName, state.cityName)}
 
 Conversation so far:
 ${conversationHistory}
 
 Generate your next spoken response:`;
 
-    try {
-      responseText = await snowflakeCortexComplete(prompt, "mistral-large2");
-      responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
-    } catch (err: any) {
-      console.error("Snowflake Cortex response failed:", err.message);
-      responseText = "I appreciate you sharing that. Could you clarify whether the site would be available for the cleanup operation?";
+      try {
+        responseText = await snowflakeCortexComplete(prompt, "mistral-large2");
+        responseText = responseText.replace(/^(Agent|Assistant|Response|AI):\s*/i, "").trim();
+      } catch (cortexErr: any) {
+        console.error("Snowflake Cortex also failed:", cortexErr.message);
+        responseText = "I appreciate you sharing that. Could you clarify whether the site would be available for the cleanup operation?";
+      }
     }
 
     state.messages.push({ role: "assistant", content: responseText });
@@ -246,33 +359,6 @@ export function getResponseText(callLogId: string, audioId: string): string | un
     if (agentEntries[idx]) return agentEntries[idx].text;
   }
   return state.transcript[state.transcript.length - 1]?.text;
-}
-
-function analyzeOutcome(state: ConversationState, userText: string) {
-  const lower = userText.toLowerCase();
-  const positiveSignals = [
-    "yes", "available", "ready", "good to go", "confirm", "sure",
-    "absolutely", "of course", "that works", "we can do", "sounds good",
-    "go ahead", "approved", "affirmative", "no problem", "definitely",
-  ];
-  const negativeSignals = [
-    "no", "not available", "can't", "cannot", "unavailable", "closed",
-    "denied", "reject", "impossible", "not possible", "negative", "decline",
-    "not ready", "won't work", "forget it",
-  ];
-
-  for (const signal of positiveSignals) {
-    if (lower.includes(signal)) {
-      state.outcome = "accepted";
-      return;
-    }
-  }
-  for (const signal of negativeSignals) {
-    if (lower.includes(signal)) {
-      state.outcome = "declined";
-      return;
-    }
-  }
 }
 
 async function finalizeConversation(callLogId: string) {
@@ -333,5 +419,5 @@ export function getActiveCallTranscript(callLogId: string): ConversationState | 
 }
 
 export function setupTwilioBridge(httpServer: Server) {
-  console.log("Twilio-Snowflake-ElevenLabs conversation bridge initialized");
+  console.log("Twilio-OpenAI-ElevenLabs conversation bridge initialized");
 }

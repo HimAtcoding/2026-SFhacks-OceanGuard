@@ -9,6 +9,12 @@ import { getMongoStats, syncToMongo } from "./mongodb";
 import { setupTwilioBridge, subscribeToTranscript, getActiveCallTranscript, processUserSpeech, getAudioBuffer, hasValidAudio, getGreetingText, getResponseText, cleanupConversation } from "./twilio-bridge";
 import twilio from "twilio";
 import { analyzeOceanData, isSnowflakeConfigured, snowflakeCortexComplete } from "./snowflake";
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+});
 
 export async function registerRoutes(
   httpServer: Server,
@@ -840,6 +846,92 @@ Provide a thorough, data-driven response referencing specific values from the mo
       res.json(job);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/cleanup-jobs/generate/:cleanupId", async (req, res) => {
+    try {
+      const { cleanupId } = req.params;
+
+      const operations = await storage.getCleanupOps();
+      const operation = operations.find((o: any) => o.id === cleanupId);
+      if (!operation) return res.status(404).json({ message: "Cleanup operation not found" });
+
+      const existingJobs = await storage.getCleanupJobs(cleanupId);
+      if (existingJobs.length > 0) {
+        return res.json(existingJobs);
+      }
+
+      const cities = await storage.getCities();
+      const city = cities.find((c: any) => c.id === operation.cityId);
+
+      const prompt = `You are generating realistic paid job listings for a marine debris cleanup operation. Generate exactly 4 job positions as a JSON array.
+
+OPERATION DETAILS:
+- Name: ${operation.operationName}
+- Location: ${city?.cityName || "Coastal area"}, ${city?.country || ""}
+- Status: ${operation.status}
+- Priority: ${operation.priority}
+- Estimated Trash: ${operation.trashCollected || 0} kg
+- Area: ${operation.areaCleaned || 0} km2
+- Drones Needed: ${operation.dronesDeployed || 0}
+- Type: Marine debris cleanup and ocean restoration
+
+Generate 4 diverse positions that make sense for this specific operation. Consider the location, scale, and priority.
+
+ROLE TYPES (use exactly one per job): safety, organizer, technical, scientific, logistics, outreach
+
+Return ONLY a valid JSON array with exactly 4 objects. Each object must have these fields:
+{
+  "title": "Job Title",
+  "roleType": "one of the role types above",
+  "description": "2-3 sentence description of the role and responsibilities specific to this operation",
+  "hourlyRate": number between 18 and 35,
+  "hoursPerShift": number between 4 and 8,
+  "shiftsAvailable": number between 2 and 8,
+  "certifications": ["relevant cert 1", "relevant cert 2"] or empty array,
+  "requirements": ["requirement 1", "requirement 2"]
+}
+
+Make the jobs realistic: include relevant certifications like PADI, FAA Part 107, OSHA 30, First Aid/CPR, HAZWOPER where appropriate. Vary the hourly rates based on skill level. Make descriptions specific to "${operation.operationName}" in ${city?.cityName || "the area"}.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_completion_tokens: 2000,
+        temperature: 0.8,
+      });
+
+      const content = response.choices[0]?.message?.content || "[]";
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) {
+        return res.status(500).json({ message: "AI failed to generate valid job listings" });
+      }
+
+      const generatedJobs = JSON.parse(jsonMatch[0]);
+      const createdJobs = [];
+
+      for (const job of generatedJobs) {
+        const created = await storage.createCleanupJob({
+          cleanupId,
+          title: job.title,
+          roleType: job.roleType || "organizer",
+          description: job.description,
+          hourlyRate: job.hourlyRate || 20,
+          hoursPerShift: job.hoursPerShift || 4,
+          shiftsAvailable: job.shiftsAvailable || 3,
+          shiftsFilled: 0,
+          certifications: Array.isArray(job.certifications) ? job.certifications : [],
+          requirements: Array.isArray(job.requirements) ? job.requirements : [],
+          status: "open",
+        });
+        createdJobs.push(created);
+      }
+
+      res.json(createdJobs);
+    } catch (err: any) {
+      console.error("AI job generation failed:", err.message);
+      res.status(500).json({ message: "Failed to generate job listings", error: err.message });
     }
   });
 

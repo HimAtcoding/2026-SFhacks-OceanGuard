@@ -4,9 +4,13 @@
 AI-powered drone ocean health monitoring platform. Features real-time dashboard with live data from simulated drone scans, Gemini-powered AI reports, blockchain carbon credit tracking, comprehensive analytics, voice narration, an AI sustainability chatbot (GreenBot), interactive 3D globe for global kelp/trash tracking with movement predictions, and a comprehensive cleanup dashboard with Solana-powered donations and external data integration.
 
 ## Recent Changes
+- 2026-02-15: Replaced conversation outcome analysis with AI-powered sentiment analysis (OpenAI) - fixes bug where positive responses like "pretty good" were misclassified as negative
+- 2026-02-15: Upgraded conversation response generation from Snowflake Cortex to OpenAI (BroxiAI) as primary with Snowflake as fallback
+- 2026-02-15: Added AI-generated job listings (POST /api/cleanup-jobs/generate/:cleanupId) using OpenAI to create contextual positions per cleanup operation, cached in DB
+- 2026-02-15: Frontend auto-triggers AI job generation when expanding a cleanup operation with no existing jobs, shows "AI is generating..." loading state
 - 2026-02-15: Redesigned Food Chain page as interactive 2D underwater scene with canvas-animated ocean, moving organism silhouettes, depth zones, bubbles, kelp forests, climate-reactive backgrounds, and side panel info
 - 2026-02-15: Added cleanup job listings with expand/collapse per operation, role-type icons/colors, certifications, hourly rates, shift hours, and apply forms
-- 2026-02-15: Added cleanup_jobs and job_applications schema tables with 15 seeded positions (Safety Lead $22.50/hr, Drone Operator $28/hr, etc.)
+- 2026-02-15: Added cleanup_jobs and job_applications schema tables
 - 2026-02-15: Fixed Twilio voice consistency: changed fallback <Say> voice from Polly.Joanna to Polly.Amy (British) to match ElevenLabs
 - 2026-02-15: Enhanced Food Chain page with kelp/algae carbon sink section, interactive climate scenario toggles (RCP 2.6/current/RCP 8.5), SVG flowchart arrows between organisms
 - 2026-02-15: Fixed Twilio/ElevenLabs TTS bug: added <Say> voice fallback when ElevenLabs audio buffer is empty or unavailable, preventing "internal server error" playback

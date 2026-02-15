@@ -62,6 +62,7 @@ import {
   Send,
   User,
   Mail,
+  Sparkles,
 } from "lucide-react";
 import { SiSolana } from "react-icons/si";
 
@@ -1058,8 +1059,10 @@ function ApplyModal({ job, onClose, cleanupName }: { job: CleanupJob; onClose: (
 
 function JobListingsSection({ cleanupId, cleanupName }: { cleanupId: string; cleanupName: string }) {
   const [applyingJob, setApplyingJob] = useState<CleanupJob | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState(false);
 
-  const { data: jobs, isLoading } = useQuery<CleanupJob[]>({
+  const { data: jobs, isLoading, refetch } = useQuery<CleanupJob[]>({
     queryKey: ["/api/cleanup-jobs", cleanupId],
     queryFn: async () => {
       const res = await fetch(`/api/cleanup-jobs?cleanupId=${cleanupId}`);
@@ -1067,7 +1070,39 @@ function JobListingsSection({ cleanupId, cleanupName }: { cleanupId: string; cle
     },
   });
 
-  if (isLoading) return <Skeleton className="h-32 w-full" />;
+  useEffect(() => {
+    if (!isLoading && jobs && jobs.length === 0 && !generating && !generated) {
+      setGenerating(true);
+      fetch(`/api/cleanup-jobs/generate/${cleanupId}`, { method: "POST" })
+        .then(res => res.json())
+        .then(() => {
+          setGenerated(true);
+          setGenerating(false);
+          refetch();
+        })
+        .catch(() => {
+          setGenerating(false);
+          setGenerated(true);
+        });
+    }
+  }, [isLoading, jobs, cleanupId, generating, generated, refetch]);
+
+  if (isLoading || generating) {
+    return (
+      <div className="space-y-3 pt-3 border-t border-border" data-testid={`jobs-section-${cleanupId}`}>
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-chart-2 animate-pulse" />
+          <span className="text-xs text-muted-foreground">{generating ? "AI is generating job listings for this operation..." : "Loading positions..."}</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   const jobList = jobs || [];
   const totalSpots = jobList.reduce((s, j) => s + j.shiftsAvailable, 0);
@@ -1078,9 +1113,10 @@ function JobListingsSection({ cleanupId, cleanupName }: { cleanupId: string; cle
     <div className="space-y-4 pt-3 border-t border-border" data-testid={`jobs-section-${cleanupId}`}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-primary" />
+          <Briefcase className="h-4 w-4 text-chart-1" />
           <h4 className="text-sm font-semibold text-foreground">Paid Positions & Shifts</h4>
           <Badge variant="secondary" className="text-[10px]">{jobList.length} roles</Badge>
+          {generated && <Badge variant="outline" className="text-[9px]"><Sparkles className="h-2.5 w-2.5 mr-1" />AI Generated</Badge>}
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>{filledSpots}/{totalSpots} shifts filled</span>
