@@ -1,6 +1,5 @@
 # OceanGuard - Presentation Script (3-5 Minutes)
 
----
 
 ## PART 1: THE PROBLEM (~40 seconds)
 
@@ -8,7 +7,6 @@
 
 Every second breath you take comes from the ocean. Not trees -- the ocean. Phytoplankton produce 50 to 80 percent of Earth's oxygen, and they've declined 40 percent since 1950. Nobody's talking about it.
 
-**[Click through organisms, toggle pessimistic scenario]**
 
 Sharks are down 71 percent. That triggers a chain reaction called a trophic cascade -- predators collapse, the food web destabilizes, and the organisms making our oxygen disappear. Worst case? 70 percent of phytoplankton gone. 90 percent of kelp forests gone. And ocean pollution is accelerating all of it.
 
